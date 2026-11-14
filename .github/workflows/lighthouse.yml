@@ -1,0 +1,133 @@
+name: Lighthouse budgets
+
+# Runs Lighthouse (@lhci/cli) against LabelKit built and started here on the runner, on a
+# throwaway Supabase stack, never against a deployed site (EPSILON-177). The pages: the public ones
+# (/, /login, /signup, /terms, /privacy) and one signed-in page (/releases), reached with a session
+# for a test user created on that stack for this job (.github/lighthouse/session.mjs).
+#
+# Budgets live in .github/lighthouse/*.json:
+# - Accessibility and SEO fail the job (SEO only on the public pages: the signed-in pages are
+#   deliberately not indexable).
+# - Performance and total page weight only warn, for now. The warnings show in the step log.
+# Reports go to the run's artifacts only: no public storage, no LHCI server.
+#
+# Nothing reaches a paid or live service: the app gets the stack's own URL and keys and no other
+# secret (no Stripe, no AudioKit, no Resend, no Sentry, no R2).
+#
+# Cost: pull requests that touch the app only, and a newer push cancels the run before it.
+# Netlify: this file and .github/lighthouse/** don't redeploy the site, because netlify.toml's
+# ignore rule excludes .github (shared 0048: Free plan credits).
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'static/**'
+      - 'drizzle/**'
+      - package.json
+      - pnpm-lock.yaml
+      - vite.config.ts
+      - .github/workflows/lighthouse.yml
+      - '.github/lighthouse/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Same pin as ci.yml (see the comment there).
+      SUPABASE_CLI_VERSION: 3.1.0-beta.26
+      LHCI_VERSION: 0.16.1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Start the Supabase stack
+        run: supabase start
+      - name: Migrate the database
+        run: |
+          db=$(supabase status --output json | jq -r .DB_URL)
+          echo "DATABASE_URL=$db" >> "$GITHUB_ENV"
+          DATABASE_URL="$db" pnpm db:migrate
+
+      # One user for the signed-in page, with a label and a small catalogue.
+      - name: Create the test user and seed the database
+        run: |
+          supabase status --output json > "$RUNNER_TEMP/supabase-status.json"
+          SUPABASE_STATUS="$RUNNER_TEMP/supabase-status.json" \
+            node .github/lighthouse/session.mjs "$RUNNER_TEMP/lighthouse-session"
+          echo "::add-mask::$(jq -r .Cookie "$RUNNER_TEMP/lighthouse-session/extra-headers.json")"
+          psql "$DATABASE_URL" --quiet \
+            -v user_id="$(cat "$RUNNER_TEMP/lighthouse-session/user-id")" \
+            -f .github/lighthouse/seed.sql
+
+      - name: Build and start LabelKit
+        env:
+          # The app talks to the stack on this runner, so sign-in works.
+          PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+        run: |
+          export PUBLIC_SUPABASE_PUBLISHABLE_KEY="$(cat "$RUNNER_TEMP/lighthouse-session/publishable-key")"
+          pnpm build
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > app.log 2>&1 &
+          for _ in $(seq 60); do
+            curl -fsS -o /dev/null http://127.0.0.1:4173/login && exit 0
+            sleep 1
+          done
+          echo "::error::LabelKit did not come up"
+          cat app.log
+          exit 1
+
+      # Without a working session /releases redirects to /login, and Lighthouse would audit the login
+      # page under the wrong name.
+      - name: The test session reaches the signed-in page
+        run: |
+          cookie=$(jq -r .Cookie "$RUNNER_TEMP/lighthouse-session/extra-headers.json")
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Cookie: $cookie" http://127.0.0.1:4173/releases)
+          if [ "$code" != 200 ]; then
+            echo "::error::/releases answered HTTP $code with the test session, not 200"
+            cat app.log
+            exit 1
+          fi
+
+      - name: Lighthouse, public pages
+        run: npx --yes @lhci/cli@${{ env.LHCI_VERSION }} autorun --config=.github/lighthouse/lighthouserc.json
+
+      # The Cookie header only goes to this run, so the public pages never see a session.
+      - name: Lighthouse, signed-in page
+        if: ${{ !cancelled() }}
+        run: |
+          headers=$(cat "$RUNNER_TEMP/lighthouse-session/extra-headers.json")
+          npx --yes @lhci/cli@${{ env.LHCI_VERSION }} autorun \
+            --config=.github/lighthouse/lighthouserc.signed-in.json \
+            "--collect.settings.extraHeaders=$headers"
+
+      - uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: lighthouse-report
+          path: |
+            lighthouse-report
+            app.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the stack
+        if: always()
+        run: supabase stop
