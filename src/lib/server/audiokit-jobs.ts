@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ApiErrorCode, Job, Operation } from './audio/contract';
-import { OPERATIONS, PARAMS_SCHEMAS } from './audio/contract';
+import { OPERATIONS, PARAMS_SCHEMAS, REFUSED } from './audio/contract';
 import { AudioProviderError } from './audio/provider';
 import type { providerResolver } from './audiokit-clients';
 import { type Actor, type Database, recordSystemAudit, withAudit } from './audit';
@@ -436,15 +436,21 @@ export async function reconcileJobs(
 			// Poll AudioKit for the current job status
 			const audiokitJob = await audiokit.status(job.providerJobId);
 
+			// A `refused` job (knowledge#97) ended without running: record it as failed.
+			// `awaiting_credit` is still in flight, like `queued`, so it's polled again later.
+			const refused = (audiokitJob.status as string) === REFUSED;
+
+			const status = refused
+				? ('failed' as const)
+				: audiokitJob.status === 'succeeded' ||
+					  audiokitJob.status === 'failed' ||
+					  audiokitJob.status === 'canceled'
+					? audiokitJob.status
+					: null;
+
 			// If the job is finished, update our database
-			if (
-				audiokitJob.status === 'succeeded' ||
-				audiokitJob.status === 'failed' ||
-				audiokitJob.status === 'canceled'
-			) {
+			if (status) {
 				const now = new Date();
-				// Narrowed here so it survives into the transaction closure.
-				const status = audiokitJob.status;
 				// Audit the machine write in the same transaction (decision 0014).
 				await db.transaction(async (tx) => {
 					await tx
@@ -452,7 +458,9 @@ export async function reconcileJobs(
 						.set({
 							status,
 							result: audiokitJob.result ?? null,
-							error: audiokitJob.error ?? null,
+							error:
+								audiokitJob.error ??
+								(refused ? { code: 'refused', message: 'AudioKit refused the job.' } : null),
 							provenance: audiokitJob.provenance ?? null,
 							finishedAt: now
 						})

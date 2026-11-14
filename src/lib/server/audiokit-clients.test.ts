@@ -465,6 +465,50 @@ describe('per-label AudioKit clients', () => {
 		expect(result.checked).toBe(0);
 	});
 
+	it('records a refused job as failed and keeps polling one awaiting credit (knowledge#97)', async () => {
+		await db.delete(audiokitJobs);
+		const orgId = await newOrg('poll-credit-states');
+		const out = await issueLabelClient(db, fakeBilling(), ring, {
+			orgId,
+			actor: { id: ownerA, kind: 'user' }
+		});
+		const submit = async (n: number) => {
+			const job = await newJob(orgId, n);
+			const providerJobId = randomUUID();
+			await db
+				.update(audiokitJobs)
+				.set({
+					clientId: out.clientId,
+					status: 'submitted',
+					providerJobId,
+					submittedAt: new Date(Date.now() - 3_600_000)
+				})
+				.where(eq(audiokitJobs.id, job.id));
+			return { id: job.id, providerJobId };
+		};
+		const refused = await submit(40);
+		const waiting = await submit(41);
+		const error = { code: 'insufficient_credits', message: 'Not enough credits' };
+		const now = new Date().toISOString();
+		const status = vi.fn(async (providerJobId: string) =>
+			providerJobId === refused.providerJobId
+				? { provider_job_id: providerJobId, status: 'refused', error, finished_at: now }
+				: { provider_job_id: providerJobId, status: 'awaiting_credit' }
+		);
+
+		const result = await reconcileJobs(
+			db,
+			providerResolver(db, env(), () => ({ status }) as never)
+		);
+
+		expect(result).toMatchObject({ checked: 2, updated: 1 });
+		const rows = await db.select().from(audiokitJobs);
+		const byId = new Map(rows.map((r) => [r.id, r]));
+		expect(byId.get(refused.id)).toMatchObject({ status: 'failed', error });
+		expect(byId.get(refused.id)?.finishedAt).not.toBeNull();
+		expect(byId.get(waiting.id)).toMatchObject({ status: 'submitted', finishedAt: null });
+	});
+
 	describe('who can read the credentials table', () => {
 		const probe = async (role: string, userId: string | null) => {
 			const err = await db
