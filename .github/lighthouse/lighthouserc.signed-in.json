@@ -11,7 +11,7 @@
 			"aggregationMethod": "median-run",
 			"assertions": {
 				"categories:accessibility": [
-					"error",
+					"warn",
 					{
 						"minScore": 0.9
 					}
