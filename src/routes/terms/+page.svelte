@@ -5,6 +5,9 @@
 
 <PublicAnalytics />
 
+<!-- PROOF ONLY (EPSILON-177): a 3.6 MB image nothing needs; the PR is closed unmerged. -->
+<img src="/proof-large-unused.png" alt="" width="1" height="1" />
+
 <LegalPage title="Terms of service" effective="12 November 2026">
 	<p>
 		These terms are an agreement between Epsilon Records, Nieuwe Uilenburgerstraat 21C, 1011LM
