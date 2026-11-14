@@ -59,6 +59,12 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+      # supabase/config.toml keeps local Auth off (the other jobs don't need it). Signing in does, so
+      # this job turns it on in its own checkout. Nothing is committed.
+      - name: Enable local Auth for this job
+        run: |
+          sed -i '/^\[auth\]$/,/^enabled = /s/^enabled = false/enabled = true/' supabase/config.toml
+          sed -n '/^\[auth\]$/,/^enabled = /p' supabase/config.toml | grep -qx 'enabled = true'
       - name: Start the Supabase stack
         run: supabase start
       - name: Migrate the database

@@ -55,7 +55,11 @@ const created = await fetch(`${apiUrl}/auth/v1/admin/users`, {
 	},
 	body: JSON.stringify({ email, password, email_confirm: true })
 });
-if (!created.ok) throw new Error(`Creating the test user failed (HTTP ${created.status}).`);
+if (!created.ok) {
+	throw new Error(
+		`Creating the test user failed (HTTP ${created.status}): ${(await created.text()).slice(0, 300)}`
+	);
+}
 const { id: userId } = await created.json();
 
 const cookies = new Map();
