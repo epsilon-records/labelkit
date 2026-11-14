@@ -76,9 +76,13 @@ jobs:
       # One user for the signed-in page, with a label and a small catalogue.
       - name: Create the test user and seed the database
         run: |
-          supabase status --output json > "$RUNNER_TEMP/supabase-status.json"
-          SUPABASE_STATUS="$RUNNER_TEMP/supabase-status.json" \
-            node .github/lighthouse/session.mjs "$RUNNER_TEMP/lighthouse-session"
+          status=$(supabase status --output json)
+          # The CLI's own keys when it prints them (the names differ between versions); the script
+          # mints them from the stack's default signing secret otherwise.
+          export SUPABASE_ANON_KEY=$(jq -r '.ANON_KEY // .PUBLISHABLE_KEY // empty' <<< "$status")
+          export SUPABASE_SERVICE_KEY=$(jq -r '.SERVICE_ROLE_KEY // .SECRET_KEY // empty' <<< "$status")
+          export SUPABASE_JWT_SECRET=$(jq -r '.JWT_SECRET // empty' <<< "$status")
+          node .github/lighthouse/session.mjs "$RUNNER_TEMP/lighthouse-session"
           echo "::add-mask::$(jq -r .Cookie "$RUNNER_TEMP/lighthouse-session/extra-headers.json")"
           psql "$DATABASE_URL" --quiet \
             -v user_id="$(cat "$RUNNER_TEMP/lighthouse-session/user-id")" \
