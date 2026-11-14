@@ -124,6 +124,10 @@ jobs:
             --config=.github/lighthouse/lighthouserc.signed-in.json \
             "--collect.settings.extraHeaders=$headers"
 
+      - name: Scores
+        if: ${{ !cancelled() }}
+        run: node .github/lighthouse/summary.mjs lighthouse-report | tee -a "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v6
         if: ${{ !cancelled() }}
         with:
