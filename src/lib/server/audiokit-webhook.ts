@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { JobRefusedEvent, WebhookEvent } from './audio/contract';
+import { WebhookEvent } from './audio/contract';
 import { SIGNATURE_HEADER, verify } from './audio/webhook';
 import { recordSystemAudit, type Database } from './audit';
 import { audiokitJobs, webhookEvents } from './db/schema';
@@ -39,18 +39,12 @@ export async function applyWebhook(
 	} catch {
 		return { status: 400, message: 'Webhook rejected: invalid_json' };
 	}
-	// `job.refused` isn't in AudioKit's published contract yet (knowledge#97), so it's checked
-	// on its own. A refused job never ran; it's recorded as failed with AudioKit's error.
 	const parsed = WebhookEvent.safeParse(json);
-	const refused = parsed.success ? null : JobRefusedEvent.safeParse(json);
-	if (!parsed.success && !refused?.success) {
-		return { status: 400, message: 'Invalid webhook event structure' };
-	}
+	if (!parsed.success) return { status: 400, message: 'Invalid webhook event structure' };
 
-	const validEvent: WebhookEvent | JobRefusedEvent = parsed.success ? parsed.data : refused!.data!;
+	const validEvent = parsed.data;
 	const { event_id, type: eventType } = validEvent;
-	const { job_id: ermsJobId, provider_job_id, finished_at } = validEvent.data;
-	const provenance = parsed.success ? parsed.data.data.provenance : undefined;
+	const { job_id: ermsJobId, provider_job_id, provenance, finished_at } = validEvent.data;
 	// AudioKit's own finish time, not ERMS's receive time (EPSILON-71).
 	const finishedAt = finished_at ? new Date(finished_at) : new Date();
 
@@ -108,6 +102,8 @@ export async function applyWebhook(
 						.set({ status: 'failed', error: validEvent.data.error, finishedAt })
 						.where(eq(audiokitJobs.id, ermsJobId));
 					break;
+				// A refused job never ran (AudioKit billing refused its credits): it's recorded as
+				// failed, with AudioKit's error.
 				case 'job.refused':
 					await tx
 						.update(audiokitJobs)

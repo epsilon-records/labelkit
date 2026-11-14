@@ -32,7 +32,20 @@ export type Operation = z.infer<typeof Operation>;
 export const OutputName = z.enum(['audio', 'vocals', 'drums', 'bass', 'other']);
 export type OutputName = z.infer<typeof OutputName>;
 
-export const JobStatus = z.enum(['queued', 'running', 'succeeded', 'failed', 'canceled']);
+/**
+ * `awaiting_credit`: stored, waiting for AudioKit's billing to hold its credits; it becomes
+ * `queued` or `refused`. `refused`: billing refused the credits, so it never ran; `error` says
+ * why. `succeeded`, `failed`, `canceled` and `refused` are final.
+ */
+export const JobStatus = z.enum([
+	'awaiting_credit',
+	'queued',
+	'running',
+	'succeeded',
+	'failed',
+	'canceled',
+	'refused'
+]);
 export type JobStatus = z.infer<typeof JobStatus>;
 
 export const Format = z.enum(['wav', 'flac', 'mp3', 'aac']);
@@ -87,9 +100,12 @@ export const KNOWN_JOB_ERROR_CODES = [
 	'encode_failed',
 	'output_url_rejected',
 	'output_upload_failed',
-	'stems_failed',
 	'stems_unavailable',
+	'stems_failed',
 	'timeout',
+	'insufficient_credits',
+	'no_active_plan',
+	'entitlement_unavailable',
 	'canceled',
 	'internal'
 ] as const;
@@ -521,10 +537,10 @@ export const Job = z
 		} else if (job.result || job.provenance) {
 			issue('only a succeeded job has result or provenance');
 		}
-		if (job.status === 'failed') {
-			if (!job.error || !job.finished_at) issue('a failed job has error and finished_at');
+		if (job.status === 'failed' || job.status === 'refused') {
+			if (!job.error || !job.finished_at) issue(`a ${job.status} job has error and finished_at`);
 		} else if (job.error) {
-			issue('only a failed job has error');
+			issue('only a failed or refused job has error');
 		}
 		if (job.result) {
 			const parsed = RESULT_SCHEMAS[job.operation].safeParse(job.result);
@@ -534,7 +550,12 @@ export const Job = z
 	});
 export type Job = z.infer<typeof Job>;
 
-export const WebhookEventType = z.enum(['job.succeeded', 'job.failed', 'job.canceled']);
+export const WebhookEventType = z.enum([
+	'job.succeeded',
+	'job.failed',
+	'job.canceled',
+	'job.refused'
+]);
 export type WebhookEventType = z.infer<typeof WebhookEventType>;
 
 export const WebhookEvent = z
@@ -547,27 +568,3 @@ export const WebhookEvent = z
 	})
 	.refine((e) => e.type === `job.${e.data.status}`, 'type matches data.status');
 export type WebhookEvent = z.infer<typeof WebhookEvent>;
-
-// --- Credit states AudioKit announced (knowledge#97, epsilon-records/audiokit#53) ----------
-// AudioKit's live spec doesn't list these yet, and JobStatus, WebhookEventType and Job mirror
-// that spec for the drift test, so they're tolerated here instead. `awaiting_credit` is a job
-// still waiting on a credit decision: in flight, like `queued`. A `refused` job ended without
-// running and carries `error` and `finished_at`: LabelKit records it as failed. Once the spec
-// lists them, the drift test fails and they move into the enums above.
-export const AWAITING_CREDIT = 'awaiting_credit';
-export const REFUSED = 'refused';
-
-/** The `job.refused` webhook. Only the fields LabelKit uses are checked. */
-export const JobRefusedEvent = z.strictObject({
-	event_id: z.uuid(),
-	type: z.literal('job.refused'),
-	created_at: z.iso.datetime({ offset: true }),
-	data: z.looseObject({
-		provider_job_id: z.uuid(),
-		job_id: z.string(),
-		status: z.literal(REFUSED),
-		error: JobError,
-		finished_at: z.iso.datetime({ offset: true }).optional()
-	})
-});
-export type JobRefusedEvent = z.infer<typeof JobRefusedEvent>;

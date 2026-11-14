@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ApiErrorCode, Job, Operation } from './audio/contract';
-import { OPERATIONS, PARAMS_SCHEMAS, REFUSED } from './audio/contract';
+import { OPERATIONS, PARAMS_SCHEMAS } from './audio/contract';
 import { AudioProviderError } from './audio/provider';
 import type { providerResolver } from './audiokit-clients';
 import { type Actor, type Database, recordSystemAudit, withAudit } from './audit';
@@ -436,9 +436,9 @@ export async function reconcileJobs(
 			// Poll AudioKit for the current job status
 			const audiokitJob = await audiokit.status(job.providerJobId);
 
-			// A `refused` job (knowledge#97) ended without running: record it as failed.
-			// `awaiting_credit` is still in flight, like `queued`, so it's polled again later.
-			const refused = (audiokitJob.status as string) === REFUSED;
+			// A `refused` job never ran (AudioKit billing refused its credits): it's recorded as
+			// failed. `awaiting_credit` is still in flight, like `queued`, so it's polled again.
+			const refused = audiokitJob.status === 'refused';
 
 			const status = refused
 				? ('failed' as const)
@@ -462,7 +462,9 @@ export async function reconcileJobs(
 								audiokitJob.error ??
 								(refused ? { code: 'refused', message: 'AudioKit refused the job.' } : null),
 							provenance: audiokitJob.provenance ?? null,
-							finishedAt: now
+							// A refusal keeps AudioKit's own time; the others are stamped when seen here.
+							finishedAt:
+								refused && audiokitJob.finished_at ? new Date(audiokitJob.finished_at) : now
 						})
 						.where(eq(audiokitJobs.id, job.id));
 					await recordSystemAudit(tx, {
