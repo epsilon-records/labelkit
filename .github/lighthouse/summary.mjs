@@ -12,8 +12,10 @@ const walk = (dir) =>
 		e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]
 	);
 const byPage = new Map();
-for (const file of walk(root).filter((f) => /lhr-[^/]*\.json$/.test(f))) {
+for (const file of walk(root).filter((f) => f.endsWith('.json'))) {
 	const lhr = JSON.parse(readFileSync(file, 'utf8'));
+	// The folder also holds the manifest and the assertion results, which aren't reports.
+	if (!lhr.finalDisplayedUrl || !lhr.categories) continue;
 	const page = new URL(lhr.finalDisplayedUrl).pathname;
 	const runs = byPage.get(page) ?? [];
 	runs.push(lhr);
