@@ -394,6 +394,22 @@
 		display: none;
 	}
 	@media (max-width: 760px) {
+		/* EPSILON-251: the header is one row tall from the first paint, the same height it has once
+		   the links fold behind Menu. Until then the links hang below it instead of pushing the page
+		   down, so folding them away on hydration moves nothing (it was a 0.045 layout shift). They
+		   stay visible, and usable, if the client code never loads. */
+		.logo {
+			min-height: 44px;
+		}
+		.landing:not(.ready) nav {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			right: 0;
+			padding: 0 32px 12px;
+			background: var(--bg);
+			border-bottom: 1px solid var(--line);
+		}
 		.ready .menu-toggle {
 			display: inline-flex;
 			align-items: center;
@@ -428,6 +444,12 @@
 			justify-content: center;
 			margin-top: 12px;
 			border-top: 0;
+		}
+	}
+	@media (max-width: 640px) {
+		.landing:not(.ready) nav {
+			padding-left: 20px;
+			padding-right: 20px;
 		}
 	}
 	@media (max-width: 480px) {
