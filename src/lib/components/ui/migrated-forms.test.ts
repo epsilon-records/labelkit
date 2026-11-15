@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
 vi.mock('$app/state', () => state);
 
 const { default: LoginPage } = await import('../../../routes/login/+page.svelte');
+const { default: SignupPage } = await import('../../../routes/signup/+page.svelte');
+const { default: SignupLabelPage } = await import('../../../routes/signup/label/+page.svelte');
+const { default: ImportPage } = await import('../../../routes/import/+page.svelte');
 const { default: MembersPage } = await import('../../../routes/members/+page.svelte');
 const { default: ApiKeysPage } = await import('../../../routes/org/api-keys/+page.svelte');
 const { default: ReleaseEditPage } =
@@ -66,6 +69,55 @@ describe('login form', () => {
 		expect(input).toContain('aria-invalid="true"');
 		expect(input).toContain('aria-describedby="login-error"');
 		expect(body).toMatch(/id="login-error"[^>]*role="alert"[^>]*>Enter a valid email address\./);
+	});
+});
+
+describe('signup forms', () => {
+	it('posts email from a labelled input and ties an error to it', () => {
+		const ok = html(SignupPage, { data: { open: true }, form: null });
+		expect(ok).toMatch(/<label[^>]*for="email"/);
+		const input = tagWithId(ok, 'email');
+		expect(input).toContain('name="email"');
+		expect(input).toContain('type="email"');
+		expect(input).toContain('required');
+		expect(input).not.toContain(' aria-invalid=');
+		expectSubmitButtons(ok);
+
+		const bad = html(SignupPage, { data: { open: true }, form: { error: 'Enter a valid email.' } });
+		expect(tagWithId(bad, 'email')).toContain('aria-describedby="signup-error"');
+		expect(bad).toMatch(/id="signup-error"[^>]*role="alert"[^>]*>Enter a valid email\./);
+	});
+
+	it('keeps the label name and address fields, and the values sent back', () => {
+		const body = html(SignupLabelPage, {
+			data: { open: true },
+			form: { error: 'That address is taken.', values: { name: 'Nightshift', slug: 'nightshift' } }
+		});
+		for (const id of ['name', 'slug']) {
+			expect(body).toMatch(new RegExp(`<label[^>]*for="${id}"`));
+			expect(tagWithId(body, id)).toContain('required');
+		}
+		expect(tagWithId(body, 'name')).toContain('value="Nightshift"');
+		expect(tagWithId(body, 'name')).toContain('aria-describedby="label-error"');
+		expect(tagWithId(body, 'slug')).toContain('value="nightshift"');
+		expect(body).toMatch(/id="label-error"[^>]*role="alert"/);
+		expectSubmitButtons(body);
+	});
+});
+
+describe('import form', () => {
+	it('posts the CSV from a labelled file input to the preview action', () => {
+		const body = html(ImportPage, { data: { runs: [] }, form: null });
+		expect(body).toContain('action="?/preview"');
+		expect(body).toContain('enctype="multipart/form-data"');
+		expect(body).toMatch(/<label[^>]*for="file"/);
+		const input = tagWithId(body, 'file');
+		expect(input).toContain('type="file"');
+		expect(input).toContain('name="file"');
+		expect(input).toContain('accept=".csv,text/csv"');
+		expect(input).toContain('required');
+		expect(input).toContain('data-slot="input"');
+		expectSubmitButtons(body);
 	});
 });
 
