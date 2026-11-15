@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FEATURES, featuresFor, requireFeature, type FlagSource } from './features.js';
+import { FEATURES, featureFor, featuresFor, requireFeature, type FlagSource } from './features.js';
 
 const fixed = (on: Record<string, boolean | undefined>): FlagSource => ({
 	isEnabled: async (flag) => on[flag]
@@ -7,7 +7,11 @@ const fixed = (on: Record<string, boolean | undefined>): FlagSource => ({
 
 describe('featuresFor', () => {
 	it('uses defaults when there is no flag source (keys not set)', async () => {
-		expect(await featuresFor(null, 'o1')).toEqual({ ar: false, recoupment: false });
+		expect(await featuresFor(null, 'o1')).toEqual({
+			ar: false,
+			recoupment: false,
+			brandedAuthEmail: false
+		});
 	});
 
 	it('uses the flag value when the source answers', async () => {
@@ -22,8 +26,16 @@ describe('featuresFor', () => {
 				throw new Error('PostHog down');
 			}
 		};
-		expect(await featuresFor(throwing, 'o1')).toEqual({ ar: false, recoupment: false });
-		expect(await featuresFor(fixed({}), 'o1')).toEqual({ ar: false, recoupment: false });
+		expect(await featuresFor(throwing, 'o1')).toEqual({
+			ar: false,
+			recoupment: false,
+			brandedAuthEmail: false
+		});
+		expect(await featuresFor(fixed({}), 'o1')).toEqual({
+			ar: false,
+			recoupment: false,
+			brandedAuthEmail: false
+		});
 	});
 
 	it('passes the org to the source', async () => {
@@ -50,5 +62,28 @@ describe('requireFeature', () => {
 		await expect(
 			requireFeature(fixed({ 'labelkit-ar': true }), 'o1', 'ar')
 		).resolves.toBeUndefined();
+	});
+});
+
+describe('featureFor', () => {
+	it('answers one feature, with its default when there is no source or it fails', async () => {
+		expect(await featureFor(null, 'o1', 'brandedAuthEmail')).toBe(false);
+		expect(
+			await featureFor(fixed({ 'labelkit-branded-auth-email': true }), 'o1', 'brandedAuthEmail')
+		).toBe(true);
+		expect(await featureFor(fixed({}), 'o1', 'brandedAuthEmail')).toBe(false);
+		const throwing: FlagSource = {
+			isEnabled: async () => {
+				throw new Error('PostHog down');
+			}
+		};
+		expect(await featureFor(throwing, 'o1', 'brandedAuthEmail')).toBe(false);
+	});
+
+	it('branded auth email is off by default', () => {
+		expect(FEATURES.brandedAuthEmail).toEqual({
+			flag: 'labelkit-branded-auth-email',
+			default: false
+		});
 	});
 });

@@ -129,11 +129,12 @@ export const variables = defineEnvVars({
 		description:
 			"HMAC secret for the deployment-wide key's webhooks (required once AUDIO_PROVIDER=audiokit)"
 	},
-	// Per-label AudioKit clients (EPSILON-102). Read by the AudioKit routes only.
+	// Per-label credentials: AudioKit clients (EPSILON-102), and a label's own auth email sender key
+	// (EPSILON-146). Read by the AudioKit routes and the Send Email hook.
 	AUDIOKIT_CREDENTIALS_KEY: {
 		schema: (value) => value || undefined,
 		description:
-			'Seals each label\'s AudioKit key and webhook secret in the database: "<id>:<base64 of 32 bytes>", comma-separated, first entry seals. Required once any label has its own client'
+			'Seals each label\'s AudioKit key and webhook secret, and its own sign-in sender\'s Resend key, in the database: "<id>:<base64 of 32 bytes>", comma-separated, first entry seals. Required once any label has its own client or sender'
 	},
 	AUDIOKIT_BILLING_URL: {
 		schema: (value) => value || undefined,
