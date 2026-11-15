@@ -91,14 +91,20 @@ describe('signup forms', () => {
 	it('keeps the label name and address fields, and the values sent back', () => {
 		const body = html(SignupLabelPage, {
 			data: { open: true },
-			form: { error: 'That address is taken.', values: { name: 'Nightshift', slug: 'nightshift' } }
+			form: {
+				error: 'That address is taken.',
+				field: 'slug',
+				values: { name: 'Nightshift', slug: 'nightshift' }
+			}
 		});
 		for (const id of ['name', 'slug']) {
 			expect(body).toMatch(new RegExp(`<label[^>]*for="${id}"`));
 			expect(tagWithId(body, id)).toContain('required');
 		}
 		expect(tagWithId(body, 'name')).toContain('value="Nightshift"');
-		expect(tagWithId(body, 'name')).toContain('aria-describedby="label-error"');
+		expect(tagWithId(body, 'name')).not.toContain(' aria-invalid=');
+		expect(tagWithId(body, 'slug')).toContain('aria-invalid="true"');
+		expect(tagWithId(body, 'slug')).toContain('aria-describedby="slug-hint label-error"');
 		expect(tagWithId(body, 'slug')).toContain('value="nightshift"');
 		expect(body).toMatch(/id="label-error"[^>]*role="alert"/);
 		expectSubmitButtons(body);

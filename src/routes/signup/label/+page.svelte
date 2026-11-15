@@ -18,6 +18,8 @@
 	const suggested = $derived(slugFromName(name));
 	const slugValue = $derived(slugEdited ? slug : suggested);
 	const error = $derived(form && 'error' in form ? form.error : null);
+	// Which input the error belongs to (the action names it; default to the name).
+	const errorField = $derived(form && 'field' in form ? form.field : 'name');
 </script>
 
 <div class="container" style="max-width: 480px; padding-top: 12vh">
@@ -44,8 +46,8 @@
 					maxlength={120}
 					value={name}
 					oninput={(e) => (name = e.currentTarget.value)}
-					aria-invalid={error ? true : undefined}
-					aria-describedby={error ? 'label-error' : undefined}
+					aria-invalid={error && errorField === 'name' ? true : undefined}
+					aria-describedby={error && errorField === 'name' ? 'label-error' : undefined}
 				/>
 			</Field.Field>
 
@@ -57,7 +59,8 @@
 					required
 					maxlength={40}
 					value={slugValue}
-					aria-describedby="slug-hint"
+					aria-invalid={error && errorField === 'slug' ? true : undefined}
+					aria-describedby={error && errorField === 'slug' ? 'slug-hint label-error' : 'slug-hint'}
 					oninput={(e) => {
 						slugEdited = true;
 						slug = e.currentTarget.value;
