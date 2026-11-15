@@ -27,3 +27,7 @@ storybook-static/
 
 # Schemathesis cache (.github/workflows/api-fuzz.yml)
 .schemathesis/
+
+# Lighthouse CI (.github/workflows/lighthouse.yml)
+.lighthouseci
+lighthouse-report
