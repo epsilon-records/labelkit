@@ -22,14 +22,14 @@ jobs:
         run: git fetch --depth=1 origin "${{ github.base_ref }}"
 
       - name: Changelog
-        uses: oasdiff/oasdiff-action/changelog@v0.0.43
+        uses: oasdiff/oasdiff-action/changelog@v0.1.23
         with:
           base: origin/${{ github.base_ref }}:docs/openapi.yaml
           revision: HEAD:docs/openapi.yaml
 
       - name: Breaking changes (fail)
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'api-breaking') }}
-        uses: oasdiff/oasdiff-action/breaking@v0.0.43
+        uses: oasdiff/oasdiff-action/breaking@v0.1.23
         with:
           base: origin/${{ github.base_ref }}:docs/openapi.yaml
           revision: HEAD:docs/openapi.yaml
