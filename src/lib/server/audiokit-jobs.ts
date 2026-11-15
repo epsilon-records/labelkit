@@ -436,15 +436,21 @@ export async function reconcileJobs(
 			// Poll AudioKit for the current job status
 			const audiokitJob = await audiokit.status(job.providerJobId);
 
+			// A `refused` job never ran (AudioKit billing refused its credits): it's recorded as
+			// failed. `awaiting_credit` is still in flight, like `queued`, so it's polled again.
+			const refused = audiokitJob.status === 'refused';
+
+			const status = refused
+				? ('failed' as const)
+				: audiokitJob.status === 'succeeded' ||
+					  audiokitJob.status === 'failed' ||
+					  audiokitJob.status === 'canceled'
+					? audiokitJob.status
+					: null;
+
 			// If the job is finished, update our database
-			if (
-				audiokitJob.status === 'succeeded' ||
-				audiokitJob.status === 'failed' ||
-				audiokitJob.status === 'canceled'
-			) {
+			if (status) {
 				const now = new Date();
-				// Narrowed here so it survives into the transaction closure.
-				const status = audiokitJob.status;
 				// Audit the machine write in the same transaction (decision 0014).
 				await db.transaction(async (tx) => {
 					await tx
@@ -452,9 +458,13 @@ export async function reconcileJobs(
 						.set({
 							status,
 							result: audiokitJob.result ?? null,
-							error: audiokitJob.error ?? null,
+							error:
+								audiokitJob.error ??
+								(refused ? { code: 'refused', message: 'AudioKit refused the job.' } : null),
 							provenance: audiokitJob.provenance ?? null,
-							finishedAt: now
+							// A refusal keeps AudioKit's own time; the others are stamped when seen here.
+							finishedAt:
+								refused && audiokitJob.finished_at ? new Date(audiokitJob.finished_at) : now
 						})
 						.where(eq(audiokitJobs.id, job.id));
 					await recordSystemAudit(tx, {
