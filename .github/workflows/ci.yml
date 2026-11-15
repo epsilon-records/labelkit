@@ -36,7 +36,7 @@ jobs:
       - run: pnpm check
       - run: pnpm db:check
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       - name: Start the Supabase stack
