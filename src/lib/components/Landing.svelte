@@ -409,6 +409,10 @@
 			padding: 0 32px 12px;
 			background: var(--bg);
 			border-bottom: 1px solid var(--line);
+			/* The header is sticky, so on a very short screen the links must scroll inside it. */
+			max-height: calc(100vh - 77px);
+			max-height: calc(100dvh - 77px);
+			overflow-y: auto;
 		}
 		.ready .menu-toggle {
 			display: inline-flex;
