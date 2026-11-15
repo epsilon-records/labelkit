@@ -95,7 +95,7 @@ jobs:
         env:
           METRICS_PROOF_PATH: ${{ runner.temp }}/app-metrics-proof.json
         run: node scripts/app-metrics-browser-db.mjs
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: app-metrics-proof
