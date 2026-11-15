@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { parseKeyRing } from '../audiokit-credentials';
 import { sealSenderKey, type BrandLookup, type OrgBrand } from './branding';
-import { handleSendEmailHook, type HookConfig } from './hook';
+import { BRANDING_BUDGET_MS, handleSendEmailHook, type HookConfig } from './hook';
 import { hookKey, signHook } from './signature';
 import { randomHookSecret } from './test-secrets';
 
@@ -344,15 +344,46 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 		});
 
 		it('the same email, flag off, matches the hook without the branding wiring at all', async () => {
-			const off = setup({ hosts: hostERMS, flagOn: [], members: [EPSILON] });
+			const off = setup({ ids: { [LABEL_B]: B }, flagOn: [], members: [EPSILON] });
 			const before = setup({ unwired: true, members: [EPSILON] });
-			await off.run(
-				signed(payload('invite', {}, { invited_org_id: LABEL_B, invited_org_name: 'Label B' }))
-			);
-			await before.run(
-				signed(payload('invite', {}, { invited_org_id: LABEL_B, invited_org_name: 'Label B' }))
-			);
+			const invite = () =>
+				signed(payload('invite', {}, { invited_org_id: LABEL_B, invited_org_name: 'Label B' }));
+			expect((await off.run(invite())).status).toBe(200);
+			expect((await before.run(invite())).status).toBe(200);
+			expect(off.orgBrand).toHaveBeenCalledWith({ orgId: LABEL_B });
+			expect(off.brandingEnabled).toHaveBeenCalledWith(LABEL_B);
 			expect(off.sent()).toEqual(before.sent());
+			expect(off.sent()).toHaveLength(1);
+		});
+
+		it('a branding step that hangs gives up within its own budget and the old path still sends', async () => {
+			vi.useFakeTimers();
+			try {
+				let clock = NOW;
+				const t = setup({
+					hosts: hostERMS,
+					members: [EPSILON],
+					flag: () => new Promise<boolean>(() => {})
+				});
+				const run = handleSendEmailHook(signed(payload()), {
+					config: CONFIG,
+					memberOrgIds: t.memberOrgIds,
+					orgBrand: t.orgBrand,
+					brandingEnabled: t.brandingEnabled,
+					fetcher: t.fetcher as unknown as typeof fetch,
+					now: () => clock,
+					log: () => {}
+				});
+				await vi.advanceTimersByTimeAsync(0);
+				clock += BRANDING_BUDGET_MS;
+				await vi.advanceTimersByTimeAsync(BRANDING_BUDGET_MS);
+				const res = await run;
+				expect(res.status).toBe(200);
+				expect(t.memberOrgIds).toHaveBeenCalled();
+				expect(t.sent()[0].body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
+			} finally {
+				vi.useRealTimers();
+			}
 		});
 
 		it('a failing flag check is off', async () => {

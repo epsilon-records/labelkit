@@ -46,6 +46,13 @@ export const AUTH_SITE_URL = 'https://labelkit.co';
  */
 export const HOOK_BUDGET_MS = 4000;
 
+/**
+ * The most the optional branding step (EPSILON-146: org lookup and flag check together) may take.
+ * When it runs out, the hook falls back to the EPSILON-147 path, which then still has at least the
+ * rest of HOOK_BUDGET_MS for its own lookup and the send.
+ */
+export const BRANDING_BUDGET_MS = 800;
+
 export type HookConfig = {
 	hookSecret: string | undefined;
 	keys: Record<SenderId, string | undefined>;
@@ -159,7 +166,9 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const invitedOrgId =
 		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
 
-	const branded = await brandFor(deps, type, invitedOrgId, email.redirect_to, remaining, (l) =>
+	const brandingDeadline = clock() + BRANDING_BUDGET_MS;
+	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
+	const branded = await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
 		log({ ...base, ...l })
 	);
 	if (branded) {
@@ -249,6 +258,7 @@ async function brandFor(
 	try {
 		brand = await withinBudget(deps.orgBrand(lookup), remaining());
 	} catch {
+		// Includes running out of BRANDING_BUDGET_MS: the old path still has its own time.
 		log({ level: 'error', outcome: 'brand_lookup_failed' });
 		return null;
 	}
