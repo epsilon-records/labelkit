@@ -4,7 +4,16 @@
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
+	const brandName = $derived(page.data.brand?.name ?? 'LabelKit');
 </script>
+
+<svelte:head>
+	<title>Create an account · {brandName}</title>
+	<meta
+		name="description"
+		content="Create a {brandName} account for your label. Enter your email, open the sign-up link we send, and name your label to start working."
+	/>
+</svelte:head>
 
 <PublicAnalytics />
 

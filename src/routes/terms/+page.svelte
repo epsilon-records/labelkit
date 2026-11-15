@@ -5,7 +5,11 @@
 
 <PublicAnalytics />
 
-<LegalPage title="Terms of service" effective="12 November 2026">
+<LegalPage
+	title="Terms of service"
+	description="LabelKit's terms of service: plans and payment, ownership of your content, acceptable use, liability, and Dutch law. Run by Epsilon Records."
+	effective="12 November 2026"
+>
 	<p>
 		These terms are an agreement between Epsilon Records, Nieuwe Uilenburgerstraat 21C, 1011LM
 		Amsterdam, the Netherlands ("we"), and the label or business that uses LabelKit ("you").

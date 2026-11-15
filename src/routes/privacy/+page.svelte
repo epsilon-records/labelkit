@@ -5,7 +5,11 @@
 
 <PublicAnalytics />
 
-<LegalPage title="Privacy notice" effective="12 November 2026">
+<LegalPage
+	title="Privacy notice"
+	description="How LabelKit handles personal data: what we process, the providers that help us, how long we keep it, cookies, and your GDPR rights."
+	effective="12 November 2026"
+>
 	<p>
 		This notice covers LabelKit: labelkit.co, the label workspaces on it, and branded workspaces
 		such as erms.epsilonrecords.com. It says what personal data LabelKit processes, why, and who
