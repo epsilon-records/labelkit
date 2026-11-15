@@ -102,6 +102,14 @@ export async function applyWebhook(
 						.set({ status: 'failed', error: validEvent.data.error, finishedAt })
 						.where(eq(audiokitJobs.id, ermsJobId));
 					break;
+				// A refused job never ran (AudioKit billing refused its credits): it's recorded as
+				// failed, with AudioKit's error.
+				case 'job.refused':
+					await tx
+						.update(audiokitJobs)
+						.set({ status: 'failed', error: validEvent.data.error, finishedAt })
+						.where(eq(audiokitJobs.id, ermsJobId));
+					break;
 				case 'job.canceled':
 					await tx
 						.update(audiokitJobs)

@@ -180,6 +180,40 @@ describe('per-label webhook route', () => {
 		expect(await status(job.id)).toBe('canceled');
 	});
 
+	it('records a job.refused webhook (credits, knowledge#97) as a failed job with its error', async () => {
+		const orgId = await seedOrg('hook-refused');
+		const { clientId } = await issueLabelClient(db, fakeBilling(), ring, {
+			orgId,
+			actor: { id: owner, kind: 'user' }
+		});
+		const { job, providerJobId } = await seedJob(orgId, clientId, 1);
+		const now = new Date().toISOString();
+		const error = { code: 'insufficient_credits', message: 'Not enough credits' };
+		const body = JSON.stringify({
+			event_id: randomUUID(),
+			type: 'job.refused',
+			created_at: now,
+			data: {
+				provider_job_id: providerJobId,
+				job_id: job.id,
+				operation: 'probe',
+				status: 'refused',
+				error,
+				created_at: now,
+				finished_at: now
+			}
+		});
+		const res = await deliver(clientId, body, await secretOf(clientId));
+		expect(res.status).toBe(200);
+		const [row] = await db
+			.select({ s: audiokitJobs.status, e: audiokitJobs.error, f: audiokitJobs.finishedAt })
+			.from(audiokitJobs)
+			.where(eq(audiokitJobs.id, job.id));
+		expect(row.s).toBe('failed');
+		expect(row.e).toEqual(error);
+		expect(row.f).not.toBeNull();
+	});
+
 	it('answers 404 for an unknown, malformed or pending client without verifying anything', async () => {
 		const billing = fakeBilling();
 		const orgId = await seedOrg('hook-unknown');
