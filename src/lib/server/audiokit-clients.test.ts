@@ -465,6 +465,57 @@ describe('per-label AudioKit clients', () => {
 		expect(result.checked).toBe(0);
 	});
 
+	it('records a refused job as failed and keeps polling one awaiting credit (credits, knowledge#97)', async () => {
+		await db.delete(audiokitJobs);
+		const orgId = await newOrg('poll-credit-states');
+		const out = await issueLabelClient(db, fakeBilling(), ring, {
+			orgId,
+			actor: { id: ownerA, kind: 'user' }
+		});
+		const submit = async (n: number) => {
+			const job = await newJob(orgId, n);
+			const providerJobId = randomUUID();
+			await db
+				.update(audiokitJobs)
+				.set({
+					clientId: out.clientId,
+					status: 'submitted',
+					providerJobId,
+					submittedAt: new Date(Date.now() - 3_600_000)
+				})
+				.where(eq(audiokitJobs.id, job.id));
+			return { id: job.id, providerJobId };
+		};
+		const refused = await submit(40);
+		const refusedNoTime = await submit(42);
+		const waiting = await submit(41);
+		const error = { code: 'insufficient_credits', message: 'Not enough credits' };
+		const refusedAt = '2026-11-14T10:00:00.000Z';
+		const status = vi.fn(async (providerJobId: string) =>
+			providerJobId === refused.providerJobId
+				? { provider_job_id: providerJobId, status: 'refused', error, finished_at: refusedAt }
+				: providerJobId === refusedNoTime.providerJobId
+					? { provider_job_id: providerJobId, status: 'refused', error }
+					: { provider_job_id: providerJobId, status: 'awaiting_credit' }
+		);
+		const before = Date.now();
+
+		const result = await reconcileJobs(
+			db,
+			providerResolver(db, env(), () => ({ status }) as never)
+		);
+
+		expect(result).toMatchObject({ checked: 3, updated: 2 });
+		const rows = await db.select().from(audiokitJobs);
+		const byId = new Map(rows.map((r) => [r.id, r]));
+		// AudioKit's own refusal time is kept; without one, the poll time is used.
+		expect(byId.get(refused.id)).toMatchObject({ status: 'failed', error });
+		expect(byId.get(refused.id)?.finishedAt?.toISOString()).toBe(refusedAt);
+		expect(byId.get(refusedNoTime.id)).toMatchObject({ status: 'failed', error });
+		expect(byId.get(refusedNoTime.id)?.finishedAt?.getTime()).toBeGreaterThanOrEqual(before);
+		expect(byId.get(waiting.id)).toMatchObject({ status: 'submitted', finishedAt: null });
+	});
+
 	describe('who can read the credentials table', () => {
 		const probe = async (role: string, userId: string | null) => {
 			const err = await db
