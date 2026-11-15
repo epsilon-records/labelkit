@@ -140,7 +140,7 @@ jobs:
       - name: Errors in the app log
         if: ${{ !cancelled() }}
         run: grep -iE "error|unhandled" app.log || echo "none"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: ${{ failure() }}
         with:
           name: schemathesis-report
