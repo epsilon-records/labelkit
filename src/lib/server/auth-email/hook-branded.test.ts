@@ -277,7 +277,7 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 
 		it('no redirect at all (a notice): no lookup, EPSILON-147 rules', async () => {
 			const t = setup({ hosts: hostERMS, flagOn: [EPSILON], members: [] });
-			await t.run(signed(payload('password_changed_notification', { redirect_to: '' })));
+			await t.run(signed(payload('identity_linked_notification', { redirect_to: '' })));
 			expect(t.orgBrand).not.toHaveBeenCalled();
 			expect(t.sent()[0].body.from).toBe('LabelKit <no-reply@auth.labelkit.co>');
 		});
