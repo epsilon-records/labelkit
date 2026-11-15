@@ -2,7 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { parseKeyRing } from '../audiokit-credentials';
 import { sealSenderKey, type BrandLookup, type OrgBrand } from './branding';
-import { BRANDING_BUDGET_MS, handleSendEmailHook, type HookConfig } from './hook';
+import {
+	BRANDING_BUDGET_MS,
+	HOOK_BUDGET_MS,
+	LEGACY_RESERVE_MS,
+	handleSendEmailHook,
+	type HookConfig
+} from './hook';
 import { hookKey, signHook } from './signature';
 import { randomHookSecret } from './test-secrets';
 
@@ -384,6 +390,38 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 			} finally {
 				vi.useRealTimers();
 			}
+		});
+
+		it('a slow body read that leaves under the reserve skips branding; the old path still sends', async () => {
+			let clock = NOW;
+			const t = setup({ hosts: hostERMS, flagOn: [EPSILON], members: [EPSILON] });
+			const req = signed(payload());
+			// The body read takes all but (reserve - 1) ms of the budget.
+			const slowText = req.text.bind(req);
+			req.text = async () => {
+				const body = await slowText();
+				clock += HOOK_BUDGET_MS - LEGACY_RESERVE_MS + 1;
+				return body;
+			};
+			const res = await handleSendEmailHook(req, {
+				config: CONFIG,
+				memberOrgIds: t.memberOrgIds,
+				orgBrand: t.orgBrand,
+				brandingEnabled: t.brandingEnabled,
+				fetcher: t.fetcher as unknown as typeof fetch,
+				now: () => clock,
+				log: () => {}
+			});
+			expect(res.status).toBe(200);
+			expect(t.orgBrand).not.toHaveBeenCalled();
+			expect(t.brandingEnabled).not.toHaveBeenCalled();
+			expect(t.memberOrgIds).toHaveBeenCalledWith(USER);
+			expect(t.sent()[0].body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
+		});
+
+		it('the reserve leaves branding its full budget on an ordinary call', () => {
+			expect(HOOK_BUDGET_MS - LEGACY_RESERVE_MS).toBe(BRANDING_BUDGET_MS);
+			expect(LEGACY_RESERVE_MS).toBeGreaterThanOrEqual(1000 + 2000);
 		});
 
 		it('a failing flag check is off', async () => {

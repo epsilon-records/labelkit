@@ -53,6 +53,17 @@ export const HOOK_BUDGET_MS = 4000;
  */
 export const BRANDING_BUDGET_MS = 800;
 
+/**
+ * What the branding step must leave for the EPSILON-147 path: 3200 ms, the 1000 ms the membership
+ * lookup may take (its transaction sets statement_timeout to 1000ms, db/scoped.ts) plus 2200 ms for
+ * the Resend send. The old path caps a send at RESEND_TIMEOUT_MS (3.5 s) but never had a fixed
+ * minimum; 2200 ms is what is left of HOOK_BUDGET_MS after a full lookup and a full branding step
+ * (4000 - 1000 - 800), so on an ordinary call branding still gets all of BRANDING_BUDGET_MS, and the
+ * old path is never left with less than it had beside a full branding step. With less than this
+ * left (a slow body read), branding is skipped: no lookup, no flag check.
+ */
+export const LEGACY_RESERVE_MS = HOOK_BUDGET_MS - BRANDING_BUDGET_MS;
+
 export type HookConfig = {
 	hookSecret: string | undefined;
 	keys: Record<SenderId, string | undefined>;
@@ -166,11 +177,16 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const invitedOrgId =
 		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
 
-	const brandingDeadline = clock() + BRANDING_BUDGET_MS;
+	// Branding gets min(BRANDING_BUDGET_MS, what is left minus LEGACY_RESERVE_MS), or nothing.
+	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - LEGACY_RESERVE_MS);
+	const brandingDeadline = clock() + brandingMs;
 	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
-	const branded = await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
-		log({ ...base, ...l })
-	);
+	const branded =
+		brandingMs > 0
+			? await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
+					log({ ...base, ...l })
+				)
+			: null;
 	if (branded) {
 		const { brand, chosen } = branded;
 		if (chosen.fallbackReason) {
@@ -258,7 +274,7 @@ async function brandFor(
 	try {
 		brand = await withinBudget(deps.orgBrand(lookup), remaining());
 	} catch {
-		// Includes running out of BRANDING_BUDGET_MS: the old path still has its own time.
+		// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
 		log({ level: 'error', outcome: 'brand_lookup_failed' });
 		return null;
 	}
