@@ -20,6 +20,7 @@ import {
 	releases
 } from '../db/schema';
 import { asUser, scopedTo } from '../db/scoped';
+import { uuidv7 } from '../db/uuidv7';
 import { searchCatalog } from '../search';
 import { createTestDb } from '../test-db';
 import { ApiError, analysisDetail } from './v1.js';
@@ -131,12 +132,14 @@ describe('/v1 reads (database)', () => {
 			upc: '000000000002'
 		});
 
+		const masterId = uuidv7();
 		const [master] = await db
 			.insert(masters)
 			.values({
+				id: masterId,
 				orgId: orgA,
 				recordingId: recordingA,
-				objectKey: `orgs/${orgA}/recordings/${recordingA}/masters/m.wav`,
+				objectKey: `orgs/${orgA}/recordings/${recordingA}/masters/${masterId}.wav`,
 				format: 'wav',
 				sizeBytes: 2048,
 				sha256: 'a'.repeat(64),
