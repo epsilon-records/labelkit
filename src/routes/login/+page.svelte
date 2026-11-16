@@ -11,6 +11,10 @@
 	const error = $derived(form && 'error' in form ? form.error : null);
 </script>
 
+<svelte:head>
+	<meta name="robots" content="noindex" />
+</svelte:head>
+
 <PublicAnalytics />
 
 <div class="container" style="max-width: 480px; padding-top: 12vh">
