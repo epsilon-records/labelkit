@@ -55,6 +55,7 @@ it('recovers a navigation preload error and suppresses only that error in Sentry
 
 it('recovers a CSS error through the hook, but reports repeat failures and application errors', async () => {
 	const { handleError } = await import('./hooks.client');
+	spies.navigation.to = { url: target };
 	const caught = {
 		kind: 'unknown',
 		error: new Error('Unable to preload CSS for /missing.css'),
@@ -73,7 +74,7 @@ it('recovers a CSS error through the hook, but reports repeat failures and appli
 });
 
 it('does not reload the current page for a hover preload failure', async () => {
-	const { init } = await import('./hooks.client');
+	const { init, handleError } = await import('./hooks.client');
 	init();
 	const event = Object.assign(new Event('vite:preloadError', { cancelable: true }), {
 		payload: new Error('Unable to preload CSS for /missing.css')
@@ -82,4 +83,7 @@ it('does not reload the current page for a hover preload failure', async () => {
 	listener(event);
 	expect(window.location.assign).not.toHaveBeenCalled();
 	expect(event.defaultPrevented).toBe(false);
+	await handleError({ kind: 'unknown', error: event.payload, event: { url: target } } as never);
+	expect(window.location.assign).not.toHaveBeenCalled();
+	expect(spies.report).toHaveBeenCalledTimes(1);
 });

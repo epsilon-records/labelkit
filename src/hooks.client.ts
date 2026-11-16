@@ -38,7 +38,12 @@ export const init: ClientInit = () => {
 const reportError = Sentry.handleErrorWithSentry<HandleClientError>();
 export const handleError: HandleClientError = (caught) => {
 	if (assetRecovery.wasRecovered(caught.error)) return;
-	if (isAssetLoadError(caught.error) && assetRecovery.reload(caught.event.url, caught.error))
+	const target = navigating.to?.url;
+	if (
+		target?.href === caught.event.url.href &&
+		isAssetLoadError(caught.error) &&
+		assetRecovery.reload(target, caught.error)
+	)
 		return;
 	return reportError(caught);
 };
