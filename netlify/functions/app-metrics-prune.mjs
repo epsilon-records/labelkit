@@ -10,5 +10,8 @@ export default async () => {
 		signal: AbortSignal.timeout(2000)
 	});
 	if (!response.ok) throw new Error('Metrics prune unavailable');
+	// Fixed completion marker so the daily run is visible in the function log: no payload, URL,
+	// credential, count or request metadata, ever.
+	console.log('app_metrics_prune ok');
 };
 export const config = { schedule: '10 0 * * *' };
