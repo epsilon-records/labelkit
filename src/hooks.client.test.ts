@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const spies = vi.hoisted(() => ({
 	init: vi.fn(),
@@ -13,6 +13,8 @@ vi.mock('$app/state', () => ({ navigating: spies.navigation }));
 vi.mock('$app/env/public', () => ({ PUBLIC_SENTRY_DSN: undefined }));
 
 const target = new URL('https://example.test/terms');
+
+afterEach(() => vi.unstubAllGlobals());
 
 beforeEach(() => {
 	vi.resetModules();
