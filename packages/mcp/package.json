@@ -5,7 +5,7 @@
 	"private": true,
 	"type": "module",
 	"mcpName": "io.github.epsilon-records/labelkit",
-	"license": "UNLICENSED",
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/epsilon-records/labelkit.git",
@@ -24,7 +24,8 @@
 	},
 	"files": [
 		"dist",
-		"README.md"
+		"README.md",
+		"LICENSE"
 	],
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json && node scripts/mark-executable.mjs",

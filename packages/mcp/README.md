@@ -68,3 +68,7 @@ pnpm --filter labelkit-co test:e2e    # runs dist/cli.js over stdio against a fa
 ```
 
 `buildServer(api)` in `src/server.ts` is the server factory: it takes anything that can answer the `/v1` reads, so the same tools can later be hosted remotely. The tests include a drift check that each tool's output schema equals the response schema in `docs/openapi.yaml`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
