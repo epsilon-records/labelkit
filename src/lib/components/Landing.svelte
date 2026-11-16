@@ -75,6 +75,18 @@
 					priceCurrency: 'EUR',
 					unitCode: 'MON'
 				}
+			},
+			{
+				'@type': 'Offer',
+				name: 'Label (annual)',
+				price: '120',
+				priceCurrency: 'EUR',
+				priceSpecification: {
+					'@type': 'UnitPriceSpecification',
+					price: '120',
+					priceCurrency: 'EUR',
+					unitCode: 'ANN'
+				}
 			}
 		],
 		publisher: {
@@ -83,8 +95,18 @@
 			url: 'https://epsilonrecords.com/'
 		}
 	};
+	const faqData = {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		'@id': 'https://labelkit.co/#faq',
+		mainEntity: faq.map(({ q, a }) => ({
+			'@type': 'Question',
+			name: q,
+			acceptedAnswer: { '@type': 'Answer', text: a }
+		}))
+	};
 	const jsonLd =
-		`<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</` +
+		`<script type="application/ld+json">${JSON.stringify([structuredData, faqData]).replace(/</g, '\\u003c')}</` +
 		'script>';
 </script>
 
