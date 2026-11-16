@@ -11,7 +11,7 @@ Codex works only on issues labelled `agent:codex` in this repo. Everything else 
 
 - **Scope:** one issue, one branch (`codex/<issue-number>-<slug>`), one PR against `main`. Stay inside what the issue asks for. No drive-by refactors, dependency bumps or config changes.
 - **Setup:** `pnpm install --frozen-lockfile`.
-- **Before opening the PR:** `pnpm lint`, `pnpm check`, `pnpm test`. All must pass.
+- **Before opening the PR:** `pnpm lint`, `pnpm check`, `pnpm test`. All must pass. `pnpm test` skips the AudioKit contract drift test unless `AUDIOKIT_OPENAPI` points at AudioKit's `openapi.yaml` (see README). If you can't set it, say in the PR that the drift test was skipped locally; CI runs it.
 - **The PR:** link the issue (`Closes #N`), say what changed and how you checked it. Start every GitHub comment with `**Codex:**`, because agents post through Nate's account.
 - **Stop at the PR.** Don't merge, deploy, change repo settings or secrets, delete branches, or touch production data. The Oracle reviews and merges in the evening release window.
 - **Blocked or unclear:** don't guess. Open an issue in `epsilon-records/knowledge` with the Message template, label `to:oracle` (add `blocking` if the work waits on it), link the issue, and stop.
