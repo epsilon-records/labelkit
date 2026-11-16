@@ -349,9 +349,44 @@ None go in the repo.
    Check the Resend logs (domain per email), Supabase's Auth logs and the Netlify function log
    (`auth_email_hook` … `"outcome":"sent"`).
 
+### Branded per label (EPSILON-146)
+
+Knowledge labelkit 0034/0035: a label's auth email carries the label's own name, and its own sender
+domain if it has one. Behind the per-org PostHog flag **`labelkit-branded-auth-email`** (default
+off, `features.ts`). With the flag off for an org, with PostHog's keys unset, or when anything in
+this path fails, the hook runs exactly the rules above. Code: `src/lib/server/auth-email/branding.ts`.
+
+- **Which org.** An invite: the inviting org (`invited_org_id`, trusted for invites only, as above).
+  Every other email: the org whose **active** custom domain (`orgs.custom_domain`,
+  `domain_status = 'active'`, not closed) is the host of the email's `redirect_to`. The login and
+  signup pages set that to their own origin, and Supabase keeps only allow-listed values, so the host
+  is the site the person signed in on. Memberships play no part, so a person in several labels gets
+  the mail of the label whose site they used. No host match (for example a signup on `labelkit.co`)
+  or no `redirect_to` (notices): the rules above.
+- **Database access.** Through the same `labelkit_auth_email` runner as above, never the owner
+  connection. Migration `0033` adds two SECURITY DEFINER functions only that role may call,
+  `app_auth_email.org_brand_by_host(text)` and `app_auth_email.org_brand_by_id(uuid)`. Each returns
+  one org's id, `name`, `display_name` and its own sender domain with the sealed key, or no row.
+- **Name.** `display_name`, else `name`, else "LabelKit", control characters removed. It is the From
+  display name (always quoted), and it goes in the subject and body: "Your ERMS sign-in link" from
+  `"ERMS" <no-reply@auth.epsilonrecords.com>`. The invite names the label once ("You're invited to
+  ERMS").
+- **Sender.** The label's row in `org_auth_senders` (migration `0033`: domain plus its Resend key,
+  sealed with `AUDIOKIT_CREDENTIALS_KEY` and bound to org and domain, like labelkit 0024). RLS is on
+  with no policy, and every role but the owner has its grants revoked. A label without a row sends
+  from `no-reply@auth.labelkit.co` with `RESEND_KEY_LABELKIT`, under its own name. If a label's key
+  does not open (ring unset or rotated, value copied from another row), the email goes out from
+  `auth.labelkit.co` under the label's name and logs `"outcome":"sender_fallback"`. It is not
+  refused. Without `RESEND_KEY_LABELKIT` the branded path fails closed.
+- **Not built yet.** Nothing writes `org_auth_senders`: the settings field, Resend domain
+  verification and key entry (0035) are a follow-up. Until then a label with the flag on sends from
+  `auth.labelkit.co` under its own name.
+
 ### Rolling back to SMTP
 
-In Supabase, **Authentication → Auth Hooks → Send Email hook → disable** (or delete it). Supabase
+To undo only the branding, turn `labelkit-branded-auth-email` off in PostHog (for one org or all);
+the next email follows the rules above, no deploy needed. To stop the hook altogether: in Supabase,
+**Authentication → Auth Hooks → Send Email hook → disable** (or delete it). Supabase
 goes back to its SMTP sender, `auth.labelkit.co`, at once; nothing in the app needs to change and no
 deploy is needed. The Netlify variables can stay.
 
