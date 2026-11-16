@@ -31,3 +31,6 @@ storybook-static/
 # Lighthouse CI (.github/workflows/lighthouse.yml)
 .lighthouseci
 lighthouse-report
+
+# Built npm packages (packages/*)
+packages/*/dist

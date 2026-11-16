@@ -372,6 +372,8 @@ then runs the request as that agent with `scopedTo`, so `/v1` goes through the s
   `/v1/recordings/{id}`, `/v1/search?q=` and `/v1/recordings/{id}/analysis` (EPSILON-138). Search is
   not paged: at most 25 releases, recordings and artists. Analysis reads what AudioKit jobs stored
   and runs nothing.
+- **MCP server:** `packages/mcp` (npm name `labelkit-co`, not published) serves the six reads to MCP
+  clients over stdio. See its README.
 - **Spec:** `docs/openapi.yaml`. `openapi.test.ts` checks that it lists exactly the routes under
   `src/routes/v1`, and `v1.db.test.ts` checks that what each route sends matches its response
   schema, and that a key from another label reads none of it.

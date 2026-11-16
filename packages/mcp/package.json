@@ -1,0 +1,49 @@
+{
+	"name": "labelkit-co",
+	"version": "0.1.0",
+	"description": "LabelKit MCP server: read a record label's catalogue (releases, recordings, search, analysis) from an MCP client.",
+	"private": true,
+	"type": "module",
+	"mcpName": "io.github.epsilon-records/labelkit",
+	"license": "UNLICENSED",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/epsilon-records/labelkit.git",
+		"directory": "packages/mcp"
+	},
+	"bin": {
+		"labelkit-co": "dist/cli.js"
+	},
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json && node scripts/mark-executable.mjs",
+		"check": "tsc --noEmit",
+		"test": "vitest run",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/server": "2.4.0",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@modelcontextprotocol/client": "2.4.0",
+		"@types/node": "^26.6.6",
+		"typescript": "^6.0.3",
+		"vitest": "^5.0.5",
+		"yaml": "^2.9.1"
+	},
+	"engines": {
+		"node": ">=20"
+	}
+}
