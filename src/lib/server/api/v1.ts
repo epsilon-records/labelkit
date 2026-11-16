@@ -159,14 +159,16 @@ export async function recordingDetail(tx: Database, orgId: string, id: string) {
  * never searches for something other than what it sent.
  */
 export function searchQuery(url: URL): string {
-	const q = (url.searchParams.get('q') ?? '').replace(/\s+/g, ' ').trim();
+	const raw = url.searchParams.get('q') ?? '';
+	// Checked on the raw value: collapsing whitespace first would turn a tab or newline into a space.
+	// eslint-disable-next-line no-control-regex -- NUL and friends are refused by Postgres text
+	if (/[\u0000-\u001f\u007f]/.test(raw)) {
+		throw new ApiError(400, 'invalid_request', 'q must not contain control characters.');
+	}
+	const q = raw.replace(/\s+/g, ' ').trim();
 	if (!q) throw new ApiError(400, 'invalid_request', 'q is required.');
 	if (q.length > MAX_QUERY) {
 		throw new ApiError(400, 'invalid_request', `q must be at most ${MAX_QUERY} characters.`);
-	}
-	// eslint-disable-next-line no-control-regex -- NUL and friends are refused by Postgres text
-	if (/[\u0000-\u001f\u007f]/.test(q)) {
-		throw new ApiError(400, 'invalid_request', 'q must not contain control characters.');
 	}
 	return q;
 }
