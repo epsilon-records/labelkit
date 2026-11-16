@@ -4,27 +4,35 @@ The LabelKit MCP server. It lets an MCP client (Claude Desktop, Claude Code, Cur
 
 It is a thin client over the public LabelKit API (`https://api.labelkit.co/v1`, contract in [`docs/openapi.yaml`](../../docs/openapi.yaml)) and runs on your machine over stdio.
 
-> Not published yet. `package.json` is `"private": true`, so `npm publish` refuses. Publishing is a separate step that needs Nate's approval. Until then, build it from this repository (see Develop).
+> Not published yet. `package.json` is `"private": true`, so `npm publish` refuses. Publishing is a separate step that needs Nate's approval. Until then, run the local build (see Install).
 
 ## Install
 
 Create an API key on your label's API page in LabelKit. Give it only the `catalog:read` scope: every tool needs that and nothing else. A key sees only its own label.
 
-Add the server to your MCP client's configuration:
+Build it from this repository (`pnpm install && pnpm --filter labelkit-co build`), then add the server to your MCP client's configuration, pointing at the built file:
 
 ```json
 {
 	"mcpServers": {
 		"labelkit": {
-			"command": "npx",
-			"args": ["-y", "labelkit-co"],
+			"command": "node",
+			"args": ["/path/to/labelkit/packages/mcp/dist/cli.js"],
 			"env": { "LABELKIT_API_KEY": "lk_xxxxxxxx_..." }
 		}
 	}
 }
 ```
 
-Claude Code: `claude mcp add labelkit --env LABELKIT_API_KEY=lk_... -- npx -y labelkit-co`.
+Claude Code: `claude mcp add labelkit --env LABELKIT_API_KEY=lk_... -- node /path/to/labelkit/packages/mcp/dist/cli.js`.
+
+After publication (not yet), `npx -y labelkit-co` replaces the `node` command and path:
+
+```json
+{ "command": "npx", "args": ["-y", "labelkit-co"] }
+```
+
+Claude Code, after publication: `claude mcp add labelkit --env LABELKIT_API_KEY=lk_... -- npx -y labelkit-co`.
 
 ## Environment
 

@@ -71,5 +71,12 @@ describe('LabelKitClient', () => {
 			.get('/v1/releases')
 			.catch((x: Error) => x);
 		expect((f as Error).message).toBe('bad [redacted]');
+		// Nor in the code of an upstream error.
+		const code = async () => jsonResponse({ error: { code: `code_${KEY}`, message: 'x' } }, 400);
+		const g = (await client(code)
+			.get('/v1/releases')
+			.catch((x: unknown) => x)) as ApiError;
+		expect(g.code).toBe('code_[redacted]');
+		expect(JSON.stringify(g)).not.toContain(KEY);
 	});
 });

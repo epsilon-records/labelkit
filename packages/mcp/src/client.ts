@@ -102,7 +102,7 @@ export class LabelKitClient implements LabelKitApi {
 			const error = (body as { error?: { code?: unknown; message?: unknown } } | undefined)?.error;
 			throw new ApiError(
 				response.status,
-				typeof error?.code === 'string' ? error.code : 'http_error',
+				this.#redact(typeof error?.code === 'string' ? error.code : 'http_error'),
 				this.#redact(
 					typeof error?.message === 'string'
 						? error.message

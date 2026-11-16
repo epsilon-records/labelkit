@@ -90,6 +90,25 @@ describe('tool handlers, against a mocked fetch', () => {
 		expect(get).not.toHaveBeenCalled();
 	});
 
+	it('accepts a timestamp with an offset, as well as Z', async () => {
+		const body = bodyFor('/v1/releases') as { data: { updated_at: string }[] };
+		body.data[0]!.updated_at = '2026-01-09T10:00:00.000+00:00';
+		const result = await runTool(tool('list_releases') as never, { get: async () => body }, {});
+		expect(result.isError).toBeUndefined();
+		expect(result.structuredContent).toEqual(body);
+	});
+
+	it('does not put a reflected key into the tool text via an upstream code', async () => {
+		const api = new LabelKitClient({
+			apiKey: KEY,
+			baseUrl: BASE,
+			fetch: (async () => jsonResponse({ error: { code: KEY, message: KEY } }, 400)) as never
+		});
+		const result = await runTool(tool('list_releases') as never, api, {});
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result)).not.toContain(KEY);
+	});
+
 	it('drops fields the API adds later', async () => {
 		const body = bodyFor('/v1/releases') as { extra?: unknown };
 		body.extra = 'new';

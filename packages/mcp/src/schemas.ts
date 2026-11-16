@@ -7,7 +7,7 @@ import { z } from 'zod';
  */
 
 const Id = z.uuid();
-const Timestamp = z.iso.datetime();
+const Timestamp = z.iso.datetime({ offset: true });
 const DateOnly = z.iso.date();
 const Text = z.string();
 const MaybeText = z.string().nullable();
