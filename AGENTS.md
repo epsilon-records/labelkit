@@ -1,18 +1,41 @@
 # Notes for agents
 
+This file is the single source of truth for every coding agent working in this repo (Claude, Codex, others). `CLAUDE.md` imports it; edit here only.
+
+## Project rules
+
 - Decisions about LabelKit's scope, stack and hosting live in the private `epsilon-records/knowledge` repo, under `labelkit/decisions/` and `shared/decisions/`. Read them before proposing changes there; record new decisions there, not here.
 - At the start of a session, check the message board for open issues labeled `to:labelkit`: `gh api "repos/epsilon-records/knowledge/issues?state=open&labels=to:labelkit"`. The protocol is in that repo's `AGENTS.md`.
 - Routes query through `locals.db` so RLS applies; only `src/hooks.server.ts` and `src/lib/server/db/client.ts` may touch the owner connection, and `owner-access.test.ts` enforces it (see README, Security).
-- Before finishing: `pnpm check`, `pnpm lint`, `pnpm test`.
+- No fake or synthetic catalogue data. UI copy uses metric units, 24-hour time and European dates.
 
-## Codex worker
+## Commands
 
-Codex works only on issues labelled `agent:codex` in this repo. Everything else belongs to the orchestrators.
+- Install: `pnpm install`
+- Before finishing: `pnpm check`, `pnpm lint`, `pnpm test`
+- `pnpm test` needs the local Supabase stack (`supabase start`, which needs Docker). If your environment has no Docker, don't stop: run `pnpm lint` and `pnpm check`, open a **draft** PR, and let CI (which starts the stack) run the database tests. Fix until CI is green, then mark the PR ready. Note in the PR that database tests ran in CI only.
+- Schema changes: `pnpm db:generate`, then `pnpm db:check`; touching RLS also needs `pnpm test:rls`
+- Format: `pnpm format`
 
-- **Scope:** one issue, one branch (`codex/<issue-number>-<slug>`), one PR against `main`. Stay inside what the issue asks for. No drive-by refactors, dependency bumps or config changes.
-- **Setup:** `pnpm install --frozen-lockfile`.
-- **Before opening the PR:** `pnpm lint`, `pnpm check`, `pnpm test`. All must pass. `pnpm test` skips the AudioKit contract drift test unless `AUDIOKIT_OPENAPI` points at AudioKit's `openapi.yaml` (see README). If you can't set it, say in the PR that the drift test was skipped locally; CI runs it.
-- **The PR:** link the issue (`Closes #N`), say what changed and how you checked it. Start every GitHub comment with `**Codex:**`, because agents post through Nate's account.
-- **Stop at the PR.** Don't merge, deploy, change repo settings or secrets, delete branches, or touch production data. The Oracle reviews and merges in the evening release window.
-- **Blocked or unclear:** don't guess. Open an issue in `epsilon-records/knowledge` with the Message template, label `to:oracle` (add `blocking` if the work waits on it), link the issue, and stop.
-- **Never** commit secrets, and never describe a security hole in an issue or PR in this repo. Raise those on the knowledge message board instead.
+## Chain of command
+
+- Nate is the board. The Oracle (a Claude session) is the only agent that talks to him, and its decisions are final.
+- Worker agents take one issue at a time and deliver it as one PR. Codex takes only issues labelled `agent:codex`, and never takes issues assigned to another agent.
+
+## How to work
+
+- Branch from `main` (`codex/<issue#>-<slug>` for Codex). Never push to `main`.
+- Keep each PR small and single-purpose, and include "Closes #<n>", a summary, test evidence and risks. CI must be green.
+- If a PR makes a lasting decision, draft the decision record in the PR description so it can be filed in `epsilon-records/knowledge`.
+
+## Never do these (raise them instead)
+
+- Merge, deploy, or change production settings (Netlify, Supabase, Cloudflare R2, Resend).
+- Change public API contracts, pricing, billing or artist-pay logic.
+- Delete data, branches or files outside the issue's scope, or write migrations that drop data.
+- Add paid services, contact anyone outside the company, or touch contracts. Never commit secrets.
+
+## Blockers and reporting
+
+- Never stop silently. Post the blocker to the message board in `epsilon-records/knowledge` following that repo's `AGENTS.md`, with your options and a recommendation, link it from the issue, and carry on with anything that doesn't depend on the answer.
+- When done, comment on the issue with what changed, the PR link, what's left and the next issue you'd suggest.
