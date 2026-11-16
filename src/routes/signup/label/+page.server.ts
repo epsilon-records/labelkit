@@ -26,11 +26,19 @@ export const actions: Actions = {
 		const values = { name: String(data.get('name') ?? ''), slug: String(data.get('slug') ?? '') };
 		const parsed = labelForm.safeParse(values);
 		if (!parsed.success) {
-			return fail(400, { values, error: parsed.error.issues[0]?.message ?? 'Check the form.' });
+			const issue = parsed.error.issues[0];
+			return fail(400, {
+				values,
+				field: issue?.path[0] === 'slug' ? 'slug' : 'name',
+				error: issue?.message ?? 'Check the form.'
+			});
 		}
 
 		const result = await locals.db((tx) => createLabel(tx, parsed.data));
-		if (!result.ok) return fail(400, { values, error: MESSAGES[result.reason].error });
+		if (!result.ok) {
+			const { field, error } = MESSAGES[result.reason];
+			return fail(400, { values, field, error });
+		}
 
 		cookies.set(ORG_COOKIE, result.orgId, {
 			path: '/',
