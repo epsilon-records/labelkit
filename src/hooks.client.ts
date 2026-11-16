@@ -1,3 +1,6 @@
+import type { ClientInit, HandleClientError } from '@sveltejs/kit/hooks';
+import { navigating } from '$app/state';
+import { assetRecovery, isAssetLoadError } from '#lib/stale-assets.js';
 import * as Sentry from '@sentry/sveltekit';
 import { isMetricsRequest } from '#lib/app-metrics-sentry.js';
 import { PUBLIC_SENTRY_DSN } from '$app/env/public';
@@ -19,7 +22,23 @@ Sentry.init({
 			shouldCreateSpanForRequest: (url) => !isMetricsRequest(url)
 		})
 	],
+	beforeSend: (event, hint) => (assetRecovery.wasRecovered(hint.originalException) ? null : event),
 	beforeBreadcrumb: (breadcrumb) => (isMetricsRequest(breadcrumb.data?.url) ? null : breadcrumb)
 });
 
-export const handleError = Sentry.handleErrorWithSentry();
+export const init: ClientInit = () => {
+	window.addEventListener('vite:preloadError', (event) => {
+		assetRecovery.markStale();
+		// A hover preload must not discard unsaved state or reload the wrong page.
+		const target = navigating.to?.url;
+		if (target && assetRecovery.reload(target, event.payload)) event.preventDefault();
+	});
+};
+
+const reportError = Sentry.handleErrorWithSentry<HandleClientError>();
+export const handleError: HandleClientError = (caught) => {
+	if (assetRecovery.wasRecovered(caught.error)) return;
+	if (isAssetLoadError(caught.error) && assetRecovery.reload(caught.event.url, caught.error))
+		return;
+	return reportError(caught);
+};
