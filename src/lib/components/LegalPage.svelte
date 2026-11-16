@@ -36,4 +36,12 @@
 	.legal :global(li) {
 		margin-bottom: 0.4em;
 	}
+	@media (max-width: 760px) {
+		.legal > p:first-child a {
+			display: inline-flex;
+			align-items: center;
+			min-width: 44px;
+			min-height: 44px;
+		}
+	}
 </style>
