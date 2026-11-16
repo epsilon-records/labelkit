@@ -20,6 +20,7 @@ import {
 	releases
 } from '../db/schema';
 import { asUser, scopedTo } from '../db/scoped';
+import { uuidv7 } from '../db/uuidv7';
 import { searchCatalog } from '../search';
 import { createTestDb } from '../test-db';
 import { ApiError, analysisDetail } from './v1.js';
@@ -131,12 +132,14 @@ describe('/v1 reads (database)', () => {
 			upc: '000000000002'
 		});
 
+		const masterId = uuidv7();
 		const [master] = await db
 			.insert(masters)
 			.values({
+				id: masterId,
 				orgId: orgA,
 				recordingId: recordingA,
-				objectKey: `orgs/${orgA}/recordings/${recordingA}/masters/m.wav`,
+				objectKey: `orgs/${orgA}/recordings/${recordingA}/masters/${masterId}.wav`,
 				format: 'wav',
 				sizeBytes: 2048,
 				sha256: 'a'.repeat(64),
@@ -190,12 +193,23 @@ describe('/v1 reads (database)', () => {
 	});
 
 	it("key B's search never returns label A's catalogue", async () => {
+		// Label B's artist is named "Alpha Rival" and the search indexes credited artist names, so
+		// B's own release and recording match "alpha" too. What must never appear is label A's.
 		const found = await call(search, keyB, '/v1/search?q=alpha');
 		expectMatchesSpec('/v1/search', '200', found.body);
-		expect(found.body.releases).toEqual([]);
-		expect(found.body.recordings).toEqual([]);
-		// B's own artist matches; A's does not.
+		expect(found.body.releases.map((r: { title: string }) => r.title)).toEqual(['Beta Dusk']);
+		expect(found.body.recordings.map((r: { title: string }) => r.title)).toEqual(['Beta Track']);
 		expect(found.body.artists.map((r: { name: string }) => r.name)).toEqual(['Alpha Rival']);
+		const everything = JSON.stringify(found.body);
+		for (const name of ['Alpha Dawn', 'Alpha Track', 'Alpha Artist', 'Imprint A', 'QZFZZ2600001']) {
+			expect(everything).not.toContain(name);
+		}
+		// Words only label A's rows contain find nothing for B.
+		for (const q of ['dawn', 'QZFZZ2600001', 'Alpha Artist']) {
+			const none = await call(search, keyB, `/v1/search?q=${encodeURIComponent(q)}`);
+			expect([none.body.releases, none.body.recordings]).toEqual([[], []]);
+			expect(none.body.artists.map((r: { name: string }) => r.name)).not.toContain('Alpha Artist');
+		}
 	});
 
 	it('key A reads the analysis stored for its recording, and the body matches the spec', async () => {

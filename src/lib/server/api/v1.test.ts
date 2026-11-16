@@ -10,6 +10,9 @@ const url = (q: string) => new URL(`https://x/v1/search?${q}`);
 describe('GET /v1/search q', () => {
 	it('is 1 to 120 characters once whitespace is collapsed', () => {
 		expect(searchQuery(url('q=%20%20vex%20%20ra%20'))).toBe('vex ra');
+		// A tab or newline is a control character, not a space to fold.
+		expect(() => searchQuery(url('q=vex%09ra'))).toThrow(ApiError);
+		expect(() => searchQuery(url('q=vex%0Ara'))).toThrow(ApiError);
 		expect(searchQuery(url(`q=${'a'.repeat(120)}`))).toHaveLength(120);
 		for (const bad of ['', 'q=', 'q=%20%09', `q=${'a'.repeat(121)}`, 'q=a%00b', 'q=a%07']) {
 			expect(() => searchQuery(url(bad)), bad).toThrow(ApiError);
