@@ -9,7 +9,16 @@
 	let { data, form }: PageProps = $props();
 	const badLink = $derived(page.url.searchParams.get('link') === 'invalid');
 	const error = $derived(form && 'error' in form ? form.error : null);
+	const brandName = $derived(page.data.brand?.name ?? 'LabelKit');
 </script>
+
+<svelte:head>
+	<title>Log in · {brandName}</title>
+	<meta
+		name="description"
+		content="Log in to {brandName} with an email link. There are no passwords: enter your address and we send a link that opens your label's workspace."
+	/>
+</svelte:head>
 
 <PublicAnalytics />
 
