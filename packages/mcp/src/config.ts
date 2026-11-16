@@ -1,3 +1,5 @@
+import { normalizeBaseUrl } from './url.js';
+
 /** Settings from the environment, checked once at startup. */
 
 export const DEFAULT_BASE_URL = 'https://api.labelkit.co';
@@ -44,5 +46,5 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
 	if (url.username || url.password || url.search || url.hash) {
 		throw new ConfigError(`${ENV_API_URL} must be a plain origin such as ${DEFAULT_BASE_URL}.`);
 	}
-	return { apiKey, baseUrl: url.origin + url.pathname.replace(/\/+$/, '') };
+	return { apiKey, baseUrl: normalizeBaseUrl(url.href) };
 }

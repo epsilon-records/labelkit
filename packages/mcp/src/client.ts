@@ -1,3 +1,4 @@
+import { normalizeBaseUrl } from './url.js';
 import { VERSION } from './version.js';
 
 /**
@@ -48,7 +49,7 @@ export class LabelKitClient implements LabelKitApi {
 
 	constructor(options: ClientOptions) {
 		this.#apiKey = options.apiKey;
-		this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
+		this.#baseUrl = normalizeBaseUrl(options.baseUrl);
 		this.#fetch = options.fetch ?? globalThis.fetch;
 		this.#timeoutMs = options.timeoutMs ?? 30_000;
 	}
