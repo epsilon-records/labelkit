@@ -8,6 +8,8 @@
 	import { PUBLIC_APP_METRICS_ENABLED } from '$app/env/public';
 	import AppMetrics from '#lib/AppMetrics.svelte';
 	import ThemeSwitch from '#lib/components/ThemeSwitch.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as NativeSelect from '#lib/components/ui/native-select/index.js';
 	import { createCollector, documentLifetime } from '#lib/app-metrics-client.js';
 	import { isMetricsOrigin } from '#lib/app-metrics-contract.js';
 	import favicon from '#lib/assets/favicon.svg';
@@ -155,14 +157,18 @@
 					{#if data.memberships && data.memberships.length > 1}
 						<form method="POST" action="/org" class="switch">
 							<label for="org" class="sr-only">Label</label>
-							<select id="org" name="orgId">
+							<NativeSelect.Root
+								id="org"
+								name="orgId"
+								value={data.membership?.orgId}
+								wrapperClass="w-auto"
+							>
 								{#each data.memberships as m (m.orgId)}
-									<option value={m.orgId} selected={m.orgId === data.membership?.orgId}
-										>{m.orgName}</option
-									>
+									<NativeSelect.Option value={m.orgId}>{m.orgName}</NativeSelect.Option>
 								{/each}
-							</select>
-							<button class="btn small">Switch</button>
+							</NativeSelect.Root>
+							<!-- min-h-11: the 44 px touch floor for the bar (audit F-11). -->
+							<Button type="submit" size="small" class="min-h-11">Switch</Button>
 						</form>
 					{/if}
 					<span class="muted">{data.user.email}</span>
@@ -203,10 +209,6 @@
 		display: flex;
 		gap: 8px;
 		align-items: center;
-	}
-	.switch select {
-		width: auto;
-		padding: 6px 10px;
 	}
 	.search {
 		display: flex;
@@ -250,9 +252,7 @@
 		font-size: 13px;
 	}
 	/* 44 px touch floor (audit F-11) for the small controls in the bar. */
-	.who :global(.linkish),
-	.who :global(.btn.small),
-	.switch select {
+	.who :global(.linkish) {
 		min-height: 44px;
 	}
 	/* Full-width skip target: draw the keyboard ring inside it so it stays on screen. */
