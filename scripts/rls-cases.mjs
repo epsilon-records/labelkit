@@ -629,3 +629,44 @@ RLS_CASES.push({
 		"SELECT relrowsecurity::text FROM pg_class WHERE oid = 'public.audiokit_label_clients'::regclass",
 	expect: 'true'
 });
+
+// org_auth_senders holds a label's own sign-in sender domain and its sealed Resend key (EPSILON-146,
+// migration 0033). The Send Email hook reads it only through the app_auth_email.org_brand_by_*
+// functions. No member, no Data API role and not the hook's own role may touch the table itself.
+for (const [role, claim] of /** @type {[string, string | null][]} */ ([
+	['anon', null],
+	['authenticated', IDS.u1],
+	['labelkit_app', IDS.u1],
+	['labelkit_app', IDS.u4],
+	['labelkit_auth_email', null]
+])) {
+	for (const [what, probe] of [
+		['read', 'SELECT count(*) FROM public.org_auth_senders'],
+		[
+			'insert',
+			`INSERT INTO public.org_auth_senders (org_id, domain, resend_key_sealed)
+				VALUES ('${IDS.orgA}', 'auth.example.test', 'x')`
+		],
+		['update', "UPDATE public.org_auth_senders SET resend_key_sealed = 'x'"],
+		['delete', 'DELETE FROM public.org_auth_senders'],
+		['truncate', 'TRUNCATE public.org_auth_senders']
+	]) {
+		RLS_CASES.push({
+			requiresSupabaseRoles: role === 'anon' || role === 'authenticated',
+			name: `${role} (${claim ?? 'no session'}) cannot ${what} org_auth_senders`,
+			role,
+			claim,
+			probe,
+			expect: 'error',
+			errorCode: '42501'
+		});
+	}
+}
+RLS_CASES.push({
+	name: 'org_auth_senders has row-level security enabled',
+	role: 'postgres',
+	claim: null,
+	probe:
+		"SELECT relrowsecurity::text FROM pg_class WHERE oid = 'public.org_auth_senders'::regclass",
+	expect: 'true'
+});

@@ -232,6 +232,13 @@
       "when": 1794502555907,
       "tag": "0032_org_custom_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794745497304,
+      "tag": "0033_auth_email_branding",
+      "breakpoints": true
     }
   ]
 }
