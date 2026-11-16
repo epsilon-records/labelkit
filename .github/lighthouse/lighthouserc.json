@@ -25,7 +25,7 @@
 				"categories:seo": [
 					"error",
 					{
-						"minScore": 0.9
+						"minScore": 1
 					}
 				],
 				"categories:performance": [

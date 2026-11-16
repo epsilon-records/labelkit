@@ -18,11 +18,14 @@
 export type SenderId = 'epsilon' | 'labelkit';
 
 export type Sender = {
-	id: SenderId;
+	/** `org`: a label's own sending domain (EPSILON-146, branding.ts). */
+	id: SenderId | 'org';
 	domain: string;
 	from: string;
-	/** What the copy calls the app. */
+	/** What the copy calls the app; for a branded email, the label's name. */
 	product: string;
+	/** Branded per label (EPSILON-146): `product` is the label itself, so the invite copy changes. */
+	branded?: boolean;
 };
 
 export const SENDERS: Record<SenderId, Sender> = {
