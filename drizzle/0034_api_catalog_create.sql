@@ -1,3 +1,5 @@
+SET LOCAL lock_timeout = '5s';
+--> statement-breakpoint
 CREATE TABLE "api_create_requests" (
 	"org_id" uuid NOT NULL,
 	"actor_id" uuid NOT NULL,
@@ -55,3 +57,21 @@ CREATE POLICY releases_agent_derive ON releases FOR UPDATE TO labelkit_app
 CREATE POLICY audit_agent_create ON audit_log FOR INSERT TO labelkit_app WITH CHECK (
  app.can_catalog_create(org_id) AND actor_kind = 'agent' AND actor_id = app.current_user_id()::text
 );
+--> statement-breakpoint
+-- Agent keys need only the type refresh during track creation, never general release edits.
+CREATE FUNCTION app.guard_agent_release_refresh() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+ IF current_user = 'labelkit_app' AND app.has_role(OLD.org_id, ARRAY['agent']) THEN
+  IF (to_jsonb(OLD) - 'type' - 'updated_at') IS DISTINCT FROM (to_jsonb(NEW) - 'type' - 'updated_at') THEN
+   RAISE EXCEPTION 'agent keys cannot edit release fields' USING ERRCODE = '42501';
+  END IF;
+ END IF;
+ RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.guard_agent_release_refresh() FROM PUBLIC;
+--> statement-breakpoint
+CREATE TRIGGER releases_agent_refresh_only BEFORE UPDATE ON releases
+ FOR EACH ROW EXECUTE FUNCTION app.guard_agent_release_refresh();

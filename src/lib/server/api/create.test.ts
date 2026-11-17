@@ -162,3 +162,31 @@ it('revoking the write key closes database write authority too', async () => {
 	);
 	expect((rows as unknown as { allowed: boolean }[])[0].allowed).toBe(false);
 });
+
+it('serializes concurrent retries and rolls back failed receipt attempts', async () => {
+	const responses = await Promise.all([
+		call('artist', { display_name: 'Concurrent' }, writer, undefined, 'parallel'),
+		call('artist', { display_name: 'Concurrent' }, writer, undefined, 'parallel')
+	]);
+	expect(responses.map((r) => r.status)).toEqual([201, 201]);
+	expect(await responses[0].json()).toEqual(await responses[1].json());
+	expect(await db.select().from(parties)).toHaveLength(1);
+	expect(
+		(await call('recording', { title: 'Missing ISRC' }, writer, undefined, 'recover')).status
+	).toBe(400);
+	expect((await call('recording', recordingBody, writer, undefined, 'recover')).status).toBe(201);
+});
+it('permits derived type refresh but forbids API actors editing unrelated release fields', async () => {
+	const response = await call('release', {
+		title: 'Original',
+		upc: '000123450102',
+		label_id: labelId
+	});
+	const { release } = await response.json();
+	await expect(
+		asUser(db, writer.actorId, (tx) =>
+			tx.update(releases).set({ title: 'Not allowed' }).where(eq(releases.id, release.id))
+		)
+	).rejects.toThrow();
+	expect((await db.select().from(releases))[0].title).toBe('Original');
+});
