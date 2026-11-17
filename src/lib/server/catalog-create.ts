@@ -35,7 +35,9 @@ export async function createRelease(db: Database, ctx: EditCtx, input: Record<st
 				orgId: ctx.orgId,
 				type: deriveReleaseType({ artists: [], tracks: [] }, new Map())
 			})
+			.onConflictDoNothing({ target: [releases.orgId, releases.upc] })
 			.returning();
+		if (!release) throw new EditError({ upc: 'UPC already used by another release' });
 		await audit({ entity: 'release', entityId: release.id, action: 'create', after: release });
 		return release;
 	});
@@ -151,7 +153,9 @@ export async function createArtist(db: Database, ctx: EditCtx, input: Record<str
 		const [artist] = await tx
 			.insert(parties)
 			.values({ orgId: ctx.orgId, displayName, matchKey, kind: 'unknown' })
+			.onConflictDoNothing({ target: [parties.orgId, parties.matchKey] })
 			.returning();
+		if (!artist) throw new EditError({ displayName: 'An artist with this name already exists' });
 		await audit({ entity: 'party', entityId: artist.id, action: 'create', after: artist });
 		return artist;
 	});
@@ -181,7 +185,10 @@ export async function createRecording(
 		const [recording] = await tx
 			.insert(recordings)
 			.values({ ...fields, durationMs: duration, orgId: ctx.orgId })
+			.onConflictDoNothing({ target: [recordings.orgId, recordings.isrc] })
 			.returning();
+		if (!recording)
+			throw new EditError({ isrc: 'ISRC already exists; choose the existing recording' });
 		await audit({
 			entity: 'recording',
 			entityId: recording.id,

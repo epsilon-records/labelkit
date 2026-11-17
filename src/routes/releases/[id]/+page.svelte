@@ -79,7 +79,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each r.tracks as t (t.position)}
+						{#each r.tracks as t (`${t.disc}:${t.position}`)}
 							<tr>
 								<td class="mono muted">{String(t.position).padStart(2, '0')}</td>
 								<td>
