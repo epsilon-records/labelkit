@@ -161,3 +161,15 @@ it('rejects cross-organisation labels and recordings', async () => {
 		await db.select().from(releaseTracks).where(eq(releaseTracks.releaseId, release.id))
 	).toHaveLength(0);
 });
+
+it('returns a field error for a concurrent duplicate UPC and keeps one audited release', async () => {
+	const results = await Promise.allSettled([
+		asUser(db, owner, (tx) => createRelease(tx, ctx(), fields())),
+		asUser(db, owner, (tx) => createRelease(tx, ctx(), fields()))
+	]);
+	expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+	const refused = results.find((r) => r.status === 'rejected');
+	expect(refused?.status === 'rejected' ? refused.reason : null).toBeInstanceOf(EditError);
+	expect(await db.select().from(releases)).toHaveLength(1);
+	expect(await db.select().from(auditLog)).toHaveLength(1);
+});
