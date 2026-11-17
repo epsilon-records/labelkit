@@ -107,6 +107,37 @@ export const orgs = pgTable(
 	]
 );
 
+/**
+ * A label's own sign-in email sender (EPSILON-146, knowledge labelkit 0035): the domain its auth
+ * email is sent from, verified with Resend, and a Resend key limited to that domain, sealed like the
+ * per-label AudioKit credentials (labelkit 0024; see auth-email/sender-key.ts). A label without a row
+ * sends from auth.labelkit.co under its own name. RLS is on with no policy and no role but the owner
+ * has rights (migration 0033): the Send Email hook reads it only through
+ * app_auth_email.org_brand_by_host()/org_brand_by_id().
+ */
+export const orgAuthSenders = pgTable(
+	'org_auth_senders',
+	{
+		orgId: uuid('org_id')
+			.primaryKey()
+			.references(() => orgs.id, { onDelete: 'cascade' }),
+		/** The sending domain, e.g. auth.epsilonrecords.com; lowercase, no port. */
+		domain: text('domain').notNull(),
+		/** The Resend key for that domain, sealed with AUDIOKIT_CREDENTIALS_KEY. */
+		resendKeySealed: text('resend_key_sealed').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		uniqueIndex('org_auth_senders_domain_key').on(t.domain),
+		check(
+			'org_auth_senders_domain_format',
+			sql`${t.domain} ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$'`
+		)
+	]
+);
+
+export type OrgAuthSender = typeof orgAuthSenders.$inferSelect;
+
 export const memberships = pgTable(
 	'memberships',
 	{

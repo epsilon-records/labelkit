@@ -34,3 +34,5 @@ lighthouse-report
 
 # Built npm packages (packages/*)
 packages/*/dist
+/test-results/
+/playwright-report/

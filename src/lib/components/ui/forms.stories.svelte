@@ -47,6 +47,16 @@
 	</div>
 </Story>
 
+<Story name="File input">
+	<div class="max-w-[480px]">
+		<Field.Field>
+			<Field.Label for="s-file">CSV file</Field.Label>
+			<Input id="s-file" type="file" name="file" accept=".csv,text/csv" />
+			<Field.Description>A SymphonicMS inventory export.</Field.Description>
+		</Field.Field>
+	</div>
+</Story>
+
 <Story name="Textarea">
 	<div class="max-w-[480px]">
 		<Field.Field>

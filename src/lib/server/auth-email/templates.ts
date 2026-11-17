@@ -12,6 +12,9 @@ import type { Sender } from './sender';
  *   that names no label, and its link is the same Auth `/verify` URL that `.ConfirmationURL` was,
  *   so the PKCE sign-in flow through `/auth/callback` is unchanged.
  *
+ * - **Branded per label** (EPSILON-146, `sender.branded`): `sender.product` is the label's own name
+ *   (branding.ts), so every subject and body names the label, and the invite names it once.
+ *
  * An email type this file does not know is refused, never sent with guessed copy.
  */
 
@@ -155,6 +158,27 @@ export function render(ctx: RenderContext): Message[] {
 
 	switch (type) {
 		case 'invite': {
+			if (sender.branded) {
+				// Branded (EPSILON-146): the sender is the inviting label itself, so the copy names it
+				// once and names no product.
+				return [
+					compose(
+						user.email,
+						`You're invited to ${product}`,
+						{
+							heading: `You're invited to ${product}`,
+							paragraphs: [
+								`${product} has invited you to join. Use the link to accept and sign in.`
+							],
+							link: {
+								href: inviteUrl(ctx.siteUrl, email.token_hash),
+								label: 'Accept the invite and sign in'
+							}
+						},
+						`The link works once. ${IGNORE}`
+					)
+				];
+			}
 			const org = invitedOrgName(user);
 			return [
 				compose(

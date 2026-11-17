@@ -21,10 +21,12 @@
 		"test:rls:rest": "node scripts/rls-postgrest.mjs",
 		"test:storybook": "vitest run --project storybook",
 		"storybook": "storybook dev -p 6006",
-		"build-storybook": "storybook build -o storybook-static"
+		"build-storybook": "storybook build -o storybook-static",
+		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@playwright/test": "^1.65.0",
 		"@storybook/addon-a11y": "^10.6.7",
 		"@storybook/addon-svelte-csf": "^5.1.6",
 		"@storybook/addon-vitest": "^10.6.7",
