@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import { invalidateAll } from '$app/navigation';
 	import { wavProblem } from '#lib/masters.js';
 	import { type Progress, uploadMaster } from '#lib/upload-master.js';
@@ -204,12 +205,13 @@
 	{#if enabled}
 		<form class="inline-form" onsubmit={upload} aria-label="Upload a master">
 			<label for="master-file" class="sr-only">WAV master</label>
-			<input
+			<Input
 				id="master-file"
 				type="file"
 				accept=".wav,audio/wav,audio/x-wav,audio/wave"
 				onchange={choose}
 				disabled={busy}
+				class="w-auto flex-[1_1_220px]"
 			/>
 			<Button type="submit" variant="primary" size="small" disabled={!file || busy}
 				>Upload master</Button
