@@ -3,6 +3,8 @@ import { verifyHook } from './signature';
 import { chooseSender, SENDERS, type SenderId } from './sender';
 import { render, UnsupportedEmailType, type HookEmailData, type HookUser } from './templates';
 import { RESEND_TIMEOUT_MS, ResendFailed, sendWithResend } from './resend';
+import { brandedSender, redirectHost, type BrandLookup, type OrgBrand } from './branding';
+import type { Sender } from './sender';
 
 /**
  * Supabase Auth's "Send Email" hook (EPSILON-147, decision 0027): Supabase POSTs every auth email
@@ -20,6 +22,12 @@ import { RESEND_TIMEOUT_MS, ResendFailed, sendWithResend } from './resend';
  * so the `message` strings below reach this app's logs and tests, not the person signing in. That
  * is still failing closed: no status but 200/202/204 counts as sent. The non-2xx statuses are kept
  * on purpose; a 200 carrying an error would only count as one while `message` is non-empty.
+ *
+ * **Branded per label (EPSILON-146)**, behind the per-org flag `labelkit-branded-auth-email`: after
+ * the signature and payload checks, the hook looks up the org the email is for (branding.ts) and asks
+ * the flag for that org. Only when an org is found *and* its flag is on does the email use the
+ * label's name and sender. Otherwise, including when the lookup or the flag check fails or there is
+ * no flag source, everything below runs exactly as it did before (EPSILON-147).
  */
 
 export const AUTH_EMAIL_HOOK_PATH = '/api/auth/send-email';
@@ -38,6 +46,24 @@ export const AUTH_SITE_URL = 'https://labelkit.co';
  */
 export const HOOK_BUDGET_MS = 4000;
 
+/**
+ * The most the optional branding step (EPSILON-146: org lookup and flag check together) may take.
+ * When it runs out, the hook falls back to the EPSILON-147 path, which then still has at least the
+ * rest of HOOK_BUDGET_MS for its own lookup and the send.
+ */
+export const BRANDING_BUDGET_MS = 800;
+
+/**
+ * What the branding step must leave for the EPSILON-147 path: 3200 ms, the 1000 ms the membership
+ * lookup may take (its transaction sets statement_timeout to 1000ms, db/scoped.ts) plus 2200 ms for
+ * the Resend send. The old path caps a send at RESEND_TIMEOUT_MS (3.5 s) but never had a fixed
+ * minimum; 2200 ms is what is left of HOOK_BUDGET_MS after a full lookup and a full branding step
+ * (4000 - 1000 - 800), so on an ordinary call branding still gets all of BRANDING_BUDGET_MS, and the
+ * old path is never left with less than it had beside a full branding step. With less than this
+ * left (a slow body read), branding is skipped: no lookup, no flag check.
+ */
+export const LEGACY_RESERVE_MS = HOOK_BUDGET_MS - BRANDING_BUDGET_MS;
+
 export type HookConfig = {
 	hookSecret: string | undefined;
 	keys: Record<SenderId, string | undefined>;
@@ -49,6 +75,8 @@ export type HookConfig = {
 	 * (`<project>.supabase.co/auth/v1`), not the Site URL (supabase/auth `internal/api/mail.go`).
 	 */
 	siteUrl: string;
+	/** AUDIOKIT_CREDENTIALS_KEY: the key ring that opens a label's own sealed Resend key. */
+	credentialsKey?: string;
 };
 
 export type HookDeps = {
@@ -56,6 +84,10 @@ export type HookDeps = {
 	/** Every org id the account belongs to. */
 	memberOrgIds: (userId: string) => Promise<string[]>;
 	fetcher: typeof fetch;
+	/** The org an email is for (migration 0033 functions), or null. Absent: branding is off. */
+	orgBrand?: (lookup: BrandLookup) => Promise<OrgBrand | null>;
+	/** Whether branded auth email is on for this org (PostHog flag). Absent: off. */
+	brandingEnabled?: (orgId: string) => Promise<boolean>;
 	now?: () => number;
 	log?: (line: Record<string, unknown>) => void;
 };
@@ -141,6 +173,46 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const type = email.email_action_type;
 	const base = { user: user.id, action_type: type, webhook_id: verified.id };
 
+	const invited = user.user_metadata?.invited_org_id;
+	const invitedOrgId =
+		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
+
+	// Branding gets min(BRANDING_BUDGET_MS, what is left minus LEGACY_RESERVE_MS), or nothing.
+	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - LEGACY_RESERVE_MS);
+	const brandingDeadline = clock() + brandingMs;
+	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
+	const branded =
+		brandingMs > 0
+			? await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
+					log({ ...base, ...l })
+				)
+			: null;
+	if (branded) {
+		const { brand, chosen } = branded;
+		if (chosen.fallbackReason) {
+			log({
+				...base,
+				level: 'error',
+				outcome: 'sender_fallback',
+				org: brand.orgId,
+				sender: brand.senderDomain,
+				reason: chosen.fallbackReason
+			});
+		}
+		if (!chosen.key) {
+			log({ ...base, level: 'error', outcome: 'not_configured', sender: chosen.sender.domain });
+			return hookError(
+				500,
+				`Sign-in email is not configured (no Resend key for ${chosen.sender.domain}).`
+			);
+		}
+		return deliver(deps, config, user, email, chosen.sender, chosen.key, verified.id, remaining, {
+			...base,
+			branded: true,
+			org: brand.orgId
+		});
+	}
+
 	const epsilonOrgId = config.epsilonOrgId;
 	if (!epsilonOrgId || !Uuid.safeParse(epsilonOrgId).success) {
 		log({
@@ -160,10 +232,9 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		return hookError(500, 'Could not prepare the sign-in email. Try again shortly.');
 	}
 
-	const invited = user.user_metadata?.invited_org_id;
 	const senderId = chooseSender({
 		actionType: type,
-		invitedOrgId: typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null,
+		invitedOrgId,
 		memberOrgIds,
 		epsilonOrgId
 	});
@@ -174,7 +245,70 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		log({ ...base, level: 'error', outcome: 'not_configured', sender: sender.domain });
 		return hookError(500, `Sign-in email is not configured (no Resend key for ${sender.domain}).`);
 	}
+	return deliver(deps, config, user, email, sender, key, verified.id, remaining, base);
+}
 
+/**
+ * The org this email is branded for, with its sender, or null to keep the EPSILON-147 path. Null
+ * whenever anything is missing or fails: no lookup or flag wired, no org to look for, no org found,
+ * a failed lookup, the flag off, or a failed flag check. So the flag off (or PostHog keys unset)
+ * changes nothing.
+ */
+async function brandFor(
+	deps: HookDeps,
+	type: string,
+	invitedOrgId: string | null,
+	redirectTo: string,
+	remaining: () => number,
+	log: (line: Record<string, unknown>) => void
+): Promise<{ brand: OrgBrand; chosen: ReturnType<typeof brandedSender> } | null> {
+	if (!deps.orgBrand || !deps.brandingEnabled) return null;
+	let lookup: BrandLookup | null = null;
+	if (type === 'invite' && invitedOrgId) lookup = { orgId: invitedOrgId };
+	else {
+		const host = redirectHost(redirectTo);
+		if (host) lookup = { host };
+	}
+	if (!lookup) return null;
+	let brand: OrgBrand | null;
+	try {
+		brand = await withinBudget(deps.orgBrand(lookup), remaining());
+	} catch {
+		// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
+		log({ level: 'error', outcome: 'brand_lookup_failed' });
+		return null;
+	}
+	if (!brand) return null;
+	let on: boolean;
+	try {
+		on = await withinBudget(deps.brandingEnabled(brand.orgId), remaining());
+	} catch {
+		on = false;
+	}
+	if (!on) return null;
+	return {
+		brand,
+		chosen: brandedSender(brand, {
+			labelkitKey: deps.config.keys.labelkit,
+			credentialsKey: deps.config.credentialsKey
+		})
+	};
+}
+
+/** Renders the email(s) and sends them through Resend with `sender` and `key`. */
+async function deliver(
+	deps: HookDeps,
+	config: HookConfig,
+	user: HookUser,
+	email: HookEmailData,
+	sender: Sender,
+	key: string,
+	webhookId: string,
+	remaining: () => number,
+	base: Record<string, unknown>
+): Promise<Response> {
+	const log = deps.log ?? defaultLog;
+	const type = email.email_action_type;
 	let messages;
 	try {
 		messages = render({
@@ -202,7 +336,7 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		messages.map((message, i) => {
 			const left = Math.min(RESEND_TIMEOUT_MS, remaining());
 			return left > 0
-				? sendWithResend(deps.fetcher, key, sender.from, message, `${verified.id}:${i}`, left)
+				? sendWithResend(deps.fetcher, key, sender.from, message, `${webhookId}:${i}`, left)
 				: Promise.reject(new ResendFailed(0, 'timeout'));
 		})
 	);

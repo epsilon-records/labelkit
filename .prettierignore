@@ -7,3 +7,5 @@ storybook-static
 storybook-site/dist
 
 packages/*/dist
+/test-results/
+/playwright-report/

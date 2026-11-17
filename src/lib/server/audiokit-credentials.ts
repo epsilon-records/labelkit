@@ -48,10 +48,23 @@ export type SealContext = {
 const aad = (c: SealContext) => Buffer.from(`erms:audiokit:${c.orgId}:${c.clientId}:${c.field}`);
 
 export function seal(ring: KeyRing, plaintext: string, context: SealContext): string {
+	return sealWithAad(ring, plaintext, aad(context));
+}
+
+export function open(ring: KeyRing, sealed: string, context: SealContext): string {
+	return openWithAad(ring, sealed, aad(context));
+}
+
+/**
+ * The same sealing for another label credential kept under this key ring (the per-label auth
+ * email sender key, EPSILON-146). `associatedData` must name what the value is for, distinct from
+ * every other credential's, so a value moved between them fails to open.
+ */
+export function sealWithAad(ring: KeyRing, plaintext: string, associatedData: Buffer): string {
 	const key = ring.keys.get(ring.current) as Buffer;
 	const iv = randomBytes(12);
 	const cipher = createCipheriv('aes-256-gcm', key, iv);
-	cipher.setAAD(aad(context));
+	cipher.setAAD(associatedData);
 	const body = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
 	return [
 		'v1',
@@ -62,7 +75,7 @@ export function seal(ring: KeyRing, plaintext: string, context: SealContext): st
 	].join('.');
 }
 
-export function open(ring: KeyRing, sealed: string, context: SealContext): string {
+export function openWithAad(ring: KeyRing, sealed: string, associatedData: Buffer): string {
 	const [version, keyId, iv, tag, body, extra] = sealed.split('.');
 	const key = keyId ? ring.keys.get(keyId) : undefined;
 	if (version !== 'v1' || !key || !iv || !tag || !body || extra !== undefined) {
@@ -70,7 +83,7 @@ export function open(ring: KeyRing, sealed: string, context: SealContext): strin
 	}
 	try {
 		const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
-		decipher.setAAD(aad(context));
+		decipher.setAAD(associatedData);
 		decipher.setAuthTag(Buffer.from(tag, 'base64url'));
 		return Buffer.concat([
 			decipher.update(Buffer.from(body, 'base64url')),
