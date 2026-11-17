@@ -75,7 +75,7 @@ function assertFresh(current: Date, expected: string | null | undefined) {
 export const ReleaseFields = z.object({
 	title: requiredText('Title'),
 	versionTitle: optionalText,
-	releaseDate: optionalText.refine((d) => d == null || /^\d{4}-\d{2}-\d{2}$/.test(d), {
+	releaseDate: optionalText.refine((d) => d == null || z.iso.date().safeParse(d).success, {
 		message: 'Date must be YYYY-MM-DD'
 	}),
 	catalogNumber: optionalText,
@@ -153,8 +153,11 @@ export const RecordingForm = z.object({
 		.transform((s, ctx) => {
 			if (s === '') return null;
 			const ms = parseDuration(s);
-			if (ms == null) {
-				ctx.addIssue({ code: 'custom', message: 'Duration must be mm:ss' });
+			if (ms == null || ms <= 0 || ms > 2147483647) {
+				ctx.addIssue({
+					code: 'custom',
+					message: 'Duration must be a positive mm:ss length that fits the recording limit'
+				});
 				return z.NEVER;
 			}
 			return ms;
