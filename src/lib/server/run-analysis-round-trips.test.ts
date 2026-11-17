@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { actions } from '../../routes/recordings/[id]/+page.server';
@@ -68,7 +69,7 @@ const ctx = () => ({
 	actor: { id: manager, kind: 'user' as const }
 });
 
-it('queues a Run in four round trips: begin, set role and user, one statement, commit', async () => {
+it('commits a Run and audit under 1 s with 98 ms per exchange in four round trips', async () => {
 	let result: unknown;
 	const event = {
 		request: new Request('http://localhost/recordings/x?/runAnalysis', {
@@ -83,7 +84,13 @@ it('queues a Run in four round trips: begin, set role and user, one statement, c
 		}
 	} as never;
 	// Six before: withAudit's savepoint and its release were two more.
-	expect(await proxy.count(async () => (result = await actions.runAnalysis(event)))).toBe(4);
+	const started = performance.now();
+	expect(await proxy.count(async () => (result = await actions.runAnalysis(event)), 98)).toBe(4);
+	const elapsedMs = performance.now() - started;
+	console.info(
+		JSON.stringify({ budget: 'runAnalysis', rtt_ms: 98, round_trips: 4, elapsed_ms: elapsedMs })
+	);
+	expect(elapsedMs).toBeLessThan(1000);
 	expect(result).toMatchObject({ action: 'runAnalysis', ok: true, result: { status: 'queued' } });
 
 	const { jobId } = (result as { result: { jobId: string } }).result;
