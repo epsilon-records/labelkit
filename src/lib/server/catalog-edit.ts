@@ -364,13 +364,15 @@ export async function removeCredit(db: Database, ctx: EditCtx, id: string) {
 /* Artists                                                                    */
 /* ------------------------------------------------------------------------- */
 
+export const ArtistForm = z.object({ displayName: requiredText('Name') });
+
 export async function renameParty(
 	db: Database,
 	ctx: EditCtx,
 	id: string,
 	input: Record<string, unknown>
 ) {
-	const parsed = z.object({ displayName: requiredText('Name') }).safeParse(input);
+	const parsed = ArtistForm.safeParse(input);
 	if (!parsed.success) throw new EditError(issuesToFields(parsed.error));
 	const displayName = parsed.data.displayName.replace(/\s+/g, ' ');
 	const matchKey = partyMatchKey(displayName);

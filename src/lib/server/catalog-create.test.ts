@@ -1,11 +1,12 @@
 import { beforeEach, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { createRelease, addTrack } from './catalog-create';
+import { createRelease, addTrack, createArtist, createRecording } from './catalog-create';
 import { EditError } from './catalog-edit';
 import { asUser } from './db/scoped';
 import {
 	auditLog,
+	parties,
 	labels,
 	memberships,
 	orgs,
@@ -160,4 +161,51 @@ it('rejects cross-organisation labels and recordings', async () => {
 	expect(
 		await db.select().from(releaseTracks).where(eq(releaseTracks.releaseId, release.id))
 	).toHaveLength(0);
+});
+
+it('creates artists and standalone recordings through the same RLS and audit path', async () => {
+	const artist = await asUser(db, owner, (tx) =>
+		createArtist(tx, ctx(), { displayName: ' Test   Artist ' })
+	);
+	expect(artist.displayName).toBe('Test Artist');
+	await expect(
+		asUser(db, owner, (tx) => createArtist(tx, ctx(), { displayName: 'test artist' }))
+	).rejects.toBeInstanceOf(EditError);
+	const input = {
+		title: 'Standalone',
+		versionTitle: '',
+		isrc: 'us-aaa-26-00001',
+		duration: '04:30',
+		genre: '',
+		subgenre: ''
+	};
+	const recording = await asUser(db, owner, (tx) => createRecording(tx, ctx(), input));
+	expect(recording.isrc).toBe('USAAA2600001');
+	expect(recording.durationMs).toBe(270000);
+	await expect(asUser(db, owner, (tx) => createRecording(tx, ctx(), input))).rejects.toBeInstanceOf(
+		EditError
+	);
+	await expect(
+		asUser(db, owner, (tx) =>
+			createRecording(
+				tx,
+				ctx(),
+				{ ...input, isrc: 'USAAA2600002' },
+				{ tracks: 1, seats: 1, analysisJobsPerMonth: 0 }
+			)
+		)
+	).rejects.toBeInstanceOf(EditError);
+	for (const user of [viewer, outsider]) {
+		const denied = { ...ctx(), actor: { id: user, kind: 'user' as const } };
+		await expect(
+			asUser(db, user, (tx) => createArtist(tx, denied, { displayName: 'Denied' }))
+		).rejects.toThrow();
+		await expect(
+			asUser(db, user, (tx) => createRecording(tx, denied, { ...input, isrc: 'USAAA2600003' }))
+		).rejects.toThrow();
+	}
+	expect(await db.select().from(parties)).toHaveLength(1);
+	expect(await db.select().from(recordings)).toHaveLength(1);
+	expect(await db.select().from(releaseTracks)).toHaveLength(0);
+	expect((await db.select().from(auditLog)).map((a) => a.entity)).toEqual(['party', 'recording']);
 });
