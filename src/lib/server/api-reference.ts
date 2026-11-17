@@ -10,7 +10,7 @@ const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
 /** Build-time view of the checked-in contract. Descriptions stay plain text, never HTML. */
 export function apiReference(raw: string) {
 	const spec = object(parse(raw));
-	const resolve = (value: unknown): Record<string, unknown> => {
+	const resolve = (value: unknown, oneHop = false): Record<string, unknown> => {
 		let result = object(value);
 		const seen = new Set<string>();
 		while (typeof result.$ref === 'string') {
@@ -23,6 +23,7 @@ export function apiReference(raw: string) {
 				current = object(current)[part.replace(/~1/g, '/').replace(/~0/g, '~')];
 			if (!current) throw new Error(`Missing OpenAPI reference: ${ref}`);
 			result = object(current);
+			if (oneHop) break;
 		}
 		return result;
 	};
@@ -32,13 +33,11 @@ export function apiReference(raw: string) {
 		const node = object(value);
 		if (typeof node.$ref === 'string') {
 			if (seen.includes(node.$ref)) return { $ref: node.$ref };
-			return expand(
-				{
-					...resolve(node),
-					...Object.fromEntries(Object.entries(node).filter(([key]) => key !== '$ref'))
-				},
-				[...seen, node.$ref]
-			);
+			const siblings = Object.fromEntries(Object.entries(node).filter(([key]) => key !== '$ref'));
+			const target = expand(resolve(node, true), [...seen, node.$ref]);
+			return Object.keys(siblings).length
+				? { allOf: [target, expand(siblings, [...seen, node.$ref])] }
+				: target;
 		}
 		return Object.fromEntries(
 			Object.entries(node).map(([key, child]) => [key, expand(child, seen)])

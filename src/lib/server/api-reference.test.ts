@@ -61,3 +61,33 @@ it('uses operation-level parameter overrides without duplicate names', () => {
 	expect(parameters[0].required).toBe(true);
 	expect(JSON.parse(parameters[0].schema).minLength).toBe(1);
 });
+
+it('preserves intermediate reference siblings and overlapping required constraints', () => {
+	const reference = apiReference(`
+components:
+  schemas:
+    Base: {type: object, required: [id]}
+    Alias: {$ref: '#/components/schemas/Base', required: [name], minProperties: 2}
+paths:
+  /resource:
+    get:
+      responses:
+        '200':
+          description: Fine
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Alias', required: [extra]}
+`);
+	const schema = JSON.parse(reference.groups[0].operations[0].responses[0].content[0].schema);
+	expect(schema).toEqual({
+		allOf: [
+			{
+				allOf: [
+					{ type: 'object', required: ['id'] },
+					{ required: ['name'], minProperties: 2 }
+				]
+			},
+			{ required: ['extra'] }
+		]
+	});
+});
