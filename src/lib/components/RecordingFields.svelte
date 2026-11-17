@@ -20,7 +20,7 @@
 	const fmt = (ms?: number | null) =>
 		ms == null
 			? ''
-			: `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+			: `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
 	const v = (key: string, fallback?: string | null) => values[key] ?? fallback ?? '';
 	const fieldError = (key: string) => errors[key];
 	const invalid = (key: string) =>
