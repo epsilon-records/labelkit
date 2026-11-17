@@ -4,6 +4,17 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+const fixtureEnvironment = { ...process.env };
+for (const name of [
+	'GIT_DIR',
+	'GIT_WORK_TREE',
+	'GIT_INDEX_FILE',
+	'GIT_COMMON_DIR',
+	'GIT_OBJECT_DIRECTORY',
+	'GIT_ALTERNATE_OBJECT_DIRECTORIES'
+])
+	delete fixtureEnvironment[name];
+
 // Both ignore commands are TOML basic strings using JSON-compatible escapes.
 function ignoreCommand(file: string): string {
 	const line = readFileSync(resolve(file), 'utf8').match(/^\s*ignore = (".*")$/m);
@@ -25,7 +36,8 @@ for (const site of [
 		function git(...args: string[]) {
 			return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], {
 				cwd: directory,
-				encoding: 'utf8'
+				encoding: 'utf8',
+				env: fixtureEnvironment
 			}).trim();
 		}
 
@@ -57,7 +69,7 @@ for (const site of [
 				cwd: join(directory, site.base),
 				encoding: 'utf8',
 				env: {
-					...process.env,
+					...fixtureEnvironment,
 					CONTEXT: context,
 					HEAD: head,
 					CACHED_COMMIT_REF: cached,
