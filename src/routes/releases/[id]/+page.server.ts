@@ -9,5 +9,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!/^[0-9a-f-]{36}$/.test(params.id)) error(404, 'Release not found');
 	const release = await locals.db((tx) => getRelease(tx, m.orgId, params.id));
 	if (!release) error(404, 'Release not found');
-	return { release, can: { edit: hasScope(m.role, 'catalog:write') } };
+	return {
+		release,
+		can: { edit: hasScope(m.role, 'catalog:write'), exportErn: m.role === 'owner' }
+	};
 };

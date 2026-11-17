@@ -37,6 +37,7 @@
 			{#if data.can.edit}
 				<div class="btn-group">
 					<a href="/releases/{r.id}/edit" class="btn primary">Edit</a>
+					{#if data.can.exportErn}<a href="/releases/{r.id}/ern" class="btn">Export ERN</a>{/if}
 				</div>
 			{/if}
 		</div>
