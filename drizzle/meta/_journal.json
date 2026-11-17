@@ -253,6 +253,20 @@
       "when": 1794897456414,
       "tag": "0035_validate_api_write_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794897884509,
+      "tag": "0036_api_receipt_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794897884510,
+      "tag": "0037_validate_api_receipt_org",
+      "breakpoints": true
     }
   ]
 }

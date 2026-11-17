@@ -1029,7 +1029,9 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 export const apiCreateRequests = pgTable(
 	'api_create_requests',
 	{
-		orgId: uuid('org_id').notNull(),
+		orgId: uuid('org_id')
+			.notNull()
+			.references(() => orgs.id, { onDelete: 'cascade' }),
 		actorId: uuid('actor_id').notNull(),
 		route: text('route').notNull(),
 		key: text('key').notNull(),
