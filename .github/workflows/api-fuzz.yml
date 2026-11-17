@@ -25,6 +25,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - vite.config.ts
+      - scripts/api-create-smoke.mjs
       - supabase/config.toml
       - .github/workflows/api-fuzz.yml
       - '.github/schemathesis/**'
@@ -36,6 +37,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - vite.config.ts
+      - scripts/api-create-smoke.mjs
       - supabase/config.toml
       - .github/workflows/api-fuzz.yml
       - '.github/schemathesis/**'
@@ -131,6 +133,9 @@ jobs:
           exit 1
 
       # Local requests count as the API host (src/lib/server/api-host.ts), so /v1 is served here.
+      - name: Deterministic create HTTP and audit proof
+        run: node scripts/api-create-smoke.mjs
+
       - name: Schemathesis
         timeout-minutes: 5
         run: |
