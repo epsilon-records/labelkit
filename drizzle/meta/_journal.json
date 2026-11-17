@@ -239,6 +239,20 @@
       "when": 1794745497304,
       "tag": "0033_auth_email_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794897456413,
+      "tag": "0034_api_catalog_create",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794897456414,
+      "tag": "0035_validate_api_write_scope",
+      "breakpoints": true
     }
   ]
 }

@@ -32,7 +32,8 @@ export function apiErrorResponse(e: ApiError): Response {
 /** Wrap a /v1 handler: ApiErrors become the error envelope, and every answer is no-store. */
 export function v1<E extends { locals: App.Locals }>(
 	scope: ApiKeyScope,
-	handler: (event: E, ctx: { orgId: string; db: App.Locals['db'] }) => Promise<unknown>
+	handler: (event: E, ctx: { orgId: string; db: App.Locals['db'] }) => Promise<unknown>,
+	status = 200
 ) {
 	return async (event: E): Promise<Response> => {
 		try {
@@ -43,7 +44,7 @@ export function v1<E extends { locals: App.Locals }>(
 				throw new ApiError(403, 'insufficient_scope', `This key lacks the ${scope} scope.`);
 			}
 			const body = await handler(event, { orgId: m.orgId, db: event.locals.db });
-			return json(body, { headers: { 'Cache-Control': 'no-store' } });
+			return json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 		} catch (e) {
 			if (e instanceof ApiError) return apiErrorResponse(e);
 			throw e;
