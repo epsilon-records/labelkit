@@ -33,7 +33,9 @@ export async function createRelease(db: Database, ctx: EditCtx, input: Record<st
 				orgId: ctx.orgId,
 				type: deriveReleaseType({ artists: [], tracks: [] }, new Map())
 			})
+			.onConflictDoNothing({ target: [releases.orgId, releases.upc] })
 			.returning();
+		if (!release) throw new EditError({ upc: 'UPC already used by another release' });
 		await audit({ entity: 'release', entityId: release.id, action: 'create', after: release });
 		return release;
 	});
