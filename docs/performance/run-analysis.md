@@ -8,10 +8,10 @@ With plans disabled or an exempt organisation, the database path is four measure
 
 This is an action budget on a connected pool. It excludes framework cold startup, the preceding Auth/membership hook, browser transfer and post-action page-data invalidation. The existing 340 ms Auth observation plus four 98 ms exchanges estimates about 732 ms before other overhead; that is an estimate, not a production observation. Cold startup is separately budgeted by PR #220.
 
-## Remaining plan-enabled decision
+## Healthy plans and the retained outage policy
 
 For non-exempt organisations with plans enabled, the action awaits `limitsFor()` before the RLS transaction. `LabelPlansBilling` permits up to 5000 ms for its request and fails open if billing is unreachable. Healthy plan checks add the lookup and two exchanges for the limit lock/count; a stalled lookup alone can exceed the one-second target.
 
-Changing that timeout would apply fail-open earlier; caching would permit stale limits. Both change billing behaviour. This PR changes neither. The Oracle must choose whether the one-second target is a healthy/plans-disabled budget or approve a separate plan-lookup policy. No background acceptance is added before permission, plan and durable queue checks finish.
+Changing that timeout would apply fail-open earlier; caching would permit stale limits. Both change billing behaviour. This PR changes neither. The Oracle chose the healthy/plans-disabled budget on 17 November (knowledge#197); the billing-outage path is explicitly outside it because retaining the existing 5000 ms fail-open policy was required. A second test exercises the actual plan-enabled action with an 80 ms healthy billing response and six 98 ms exchanges, again below one second. No background acceptance is added before permission, plan and durable queue checks finish.
 
 Production's current `PLANS_ENABLED` value and a signed-in live Re-run have not been read or exercised here. No production jobs or catalogue changes were created. After deployment the Oracle should time the actual first form response separately from page invalidation and record whether plans were active.
