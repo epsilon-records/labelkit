@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import Ajv2020 from 'ajv/dist/2020';
 import { apiReference } from './api-reference';
 
 it('renders the checked-in operations with resolved parameters, responses and authentication', () => {
@@ -80,14 +81,38 @@ paths:
 `);
 	const schema = JSON.parse(reference.groups[0].operations[0].responses[0].content[0].schema);
 	expect(schema).toEqual({
+		required: ['extra'],
 		allOf: [
 			{
-				allOf: [
-					{ type: 'object', required: ['id'] },
-					{ required: ['name'], minProperties: 2 }
-				]
-			},
-			{ required: ['extra'] }
+				required: ['name'],
+				minProperties: 2,
+				allOf: [{ type: 'object', required: ['id'] }]
+			}
 		]
 	});
+});
+
+it('keeps unevaluatedProperties adjacent to referenced properties and existing allOf entries', () => {
+	const reference = apiReference(`
+components:
+  schemas:
+    Base: {type: object, properties: {id: {type: string}}}
+paths:
+  /resource:
+    get:
+      responses:
+        '200':
+          description: Fine
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Base'
+                unevaluatedProperties: false
+                allOf: [{required: [id]}]
+`);
+	const schema = JSON.parse(reference.groups[0].operations[0].responses[0].content[0].schema);
+	const validate = new Ajv2020({ strict: false }).compile(schema);
+	expect(validate({ id: 'x' })).toBe(true);
+	expect(validate({ id: 'x', extra: true })).toBe(false);
+	expect(validate({})).toBe(false);
 });

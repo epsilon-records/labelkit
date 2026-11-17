@@ -35,9 +35,9 @@ export function apiReference(raw: string) {
 			if (seen.includes(node.$ref)) return { $ref: node.$ref };
 			const siblings = Object.fromEntries(Object.entries(node).filter(([key]) => key !== '$ref'));
 			const target = expand(resolve(node, true), [...seen, node.$ref]);
-			return Object.keys(siblings).length
-				? { allOf: [target, expand(siblings, [...seen, node.$ref])] }
-				: target;
+			if (!Object.keys(siblings).length) return target;
+			const expanded = object(expand(siblings, [...seen, node.$ref]));
+			return { ...expanded, allOf: [target, ...array(expanded.allOf)] };
 		}
 		return Object.fromEntries(
 			Object.entries(node).map(([key, child]) => [key, expand(child, seen)])
