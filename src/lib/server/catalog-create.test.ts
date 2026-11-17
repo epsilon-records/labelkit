@@ -209,3 +209,15 @@ it('creates artists and standalone recordings through the same RLS and audit pat
 	expect(await db.select().from(releaseTracks)).toHaveLength(0);
 	expect((await db.select().from(auditLog)).map((a) => a.entity)).toEqual(['party', 'recording']);
 });
+
+it('returns a field error for a concurrent duplicate UPC and keeps one audited release', async () => {
+	const results = await Promise.allSettled([
+		asUser(db, owner, (tx) => createRelease(tx, ctx(), fields())),
+		asUser(db, owner, (tx) => createRelease(tx, ctx(), fields()))
+	]);
+	expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+	const refused = results.find((r) => r.status === 'rejected');
+	expect(refused?.status === 'rejected' ? refused.reason : null).toBeInstanceOf(EditError);
+	expect(await db.select().from(releases)).toHaveLength(1);
+	expect(await db.select().from(auditLog)).toHaveLength(1);
+});
