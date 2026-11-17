@@ -41,7 +41,7 @@ const optionalText = z
 
 const requiredText = (label: string) => z.string().trim().min(1, `${label} is required`);
 
-function issuesToFields(error: z.ZodError): Record<string, string> {
+export function issuesToFields(error: z.ZodError): Record<string, string> {
 	return Object.fromEntries(error.issues.map((i) => [String(i.path[0] ?? 'form'), i.message]));
 }
 
@@ -72,10 +72,9 @@ function assertFresh(current: Date, expected: string | null | undefined) {
 /* Releases                                                                   */
 /* ------------------------------------------------------------------------- */
 
-export const ReleaseForm = z.object({
+export const ReleaseFields = z.object({
 	title: requiredText('Title'),
 	versionTitle: optionalText,
-	type: z.enum(releaseTypeEnum.enumValues),
 	releaseDate: optionalText.refine((d) => d == null || /^\d{4}-\d{2}-\d{2}$/.test(d), {
 		message: 'Date must be YYYY-MM-DD'
 	}),
@@ -88,6 +87,8 @@ export const ReleaseForm = z.object({
 	genre: optionalText,
 	subgenre: optionalText
 });
+
+export const ReleaseForm = ReleaseFields.extend({ type: z.enum(releaseTypeEnum.enumValues) });
 
 export async function updateRelease(
 	db: Database,

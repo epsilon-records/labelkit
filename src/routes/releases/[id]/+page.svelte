@@ -36,6 +36,7 @@
 			</h1>
 			{#if data.can.edit}
 				<div class="btn-group">
+					<a href="/releases/{r.id}/tracks/new" class="btn">Add track</a>
 					<a href="/releases/{r.id}/edit" class="btn primary">Edit</a>
 				</div>
 			{/if}
