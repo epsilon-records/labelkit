@@ -42,7 +42,7 @@ export const URL_TTL_SECONDS = 15 * 60;
 export const MAX_PARTS_PER_REQUEST = 16;
 
 export function canUploadMasters(role: Role) {
-	return hasScope(role, 'catalog:write');
+	return role !== 'agent' && hasScope(role, 'catalog:write');
 }
 
 function assertCanUpload(ctx: MasterCtx) {

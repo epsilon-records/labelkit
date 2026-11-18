@@ -34,6 +34,9 @@ jobs:
       - run: pnpm audit --prod --audit-level high
       - run: pnpm lint
       - run: pnpm check
+      # The MCP package: build it, then run the built server over stdio against a fake API (EPSILON-138).
+      - name: MCP package builds and serves over stdio
+        run: pnpm --filter labelkit-co build && pnpm --filter labelkit-co test:e2e
       - run: pnpm db:check
 
       - uses: supabase/setup-cli@v3
@@ -156,7 +159,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v7
         if: failure()
