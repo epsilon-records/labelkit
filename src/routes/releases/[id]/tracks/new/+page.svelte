@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RecordingFields from '#lib/components/RecordingFields.svelte';
 	import type { PageProps } from './$types';
 	let { data, form }: PageProps = $props();
 	const values = $derived(form && 'values' in form ? (form.values ?? {}) : {});
@@ -25,14 +26,7 @@
 					>{/each}</select
 			>
 		{:else}
-			{#each [{ name: 'title', label: 'Title', required: true }, { name: 'versionTitle', label: 'Version' }, { name: 'isrc', label: 'ISRC', required: true }, { name: 'duration', label: 'Duration (mm:ss)' }, { name: 'genre', label: 'Genre' }, { name: 'subgenre', label: 'Subgenre' }] as field (field.name)}
-				<label for={field.name}>{field.label}</label><input
-					id={field.name}
-					name={field.name}
-					value={values[field.name] ?? ''}
-					required={field.required ?? false}
-				/>
-			{/each}
+			<RecordingFields {values} {errors} />
 		{/if}
 		<label for="disc">Disc</label><input
 			id="disc"

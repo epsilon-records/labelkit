@@ -75,6 +75,7 @@
 	const nav = $derived([
 		{ href: '/releases', label: 'Releases' },
 		{ href: '/artists', label: 'Artists' },
+		{ href: '/recordings', label: 'Recordings' },
 		{ href: '/compositions', label: 'Compositions' },
 		...(canRights ? [{ href: '/rights', label: 'Rights' }] : []),
 		...(canImport ? [{ href: '/import', label: 'Import' }] : []),
