@@ -37,6 +37,8 @@ jobs:
       # The MCP package: build it, then run the built server over stdio against a fake API (EPSILON-138).
       - name: MCP package builds and serves over stdio
         run: pnpm --filter labelkit-co build && pnpm --filter labelkit-co test:e2e
+      - name: Build and smoke-test the LabelKit CLI
+        run: pnpm --filter ./packages/cli build && node packages/cli/dist/cli/src/main.js --help
       - run: pnpm db:check
 
       - uses: supabase/setup-cli@v3
