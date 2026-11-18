@@ -14,6 +14,7 @@ import { db } from '#lib/server/db/client.js';
 import { memberships, orgs } from '#lib/server/db/schema.js';
 import { scopedTo } from '#lib/server/db/scoped.js';
 import { brandForHost, DEFAULT_BRAND } from '#lib/server/branding.js';
+import { crawlerMetadata, noindex } from '#lib/server/crawler.js';
 import { isLandingRequest } from '#lib/server/landing.js';
 import { isMachineRoute, isPublicPath, PUBLIC_PAGES } from '#lib/server/public-paths.js';
 import { keyFromHeader, resolveApiKey } from '#lib/server/api-keys.js';
@@ -129,13 +130,13 @@ const appHandle: Handle = async ({ event, resolve }) => {
 	const isPublic =
 		isPublicPath(event.url.pathname) || isLandingRequest(event.url.pathname, event.locals.brand);
 	if (!user && !isPublic) {
-		redirect(303, '/login');
+		return privateRedirect(event.request, '/login');
 	}
 
 	// Signed in but in no label (a new self-serve account, or a member who was removed): the only
 	// thing to do is create a label (EPSILON-130), which /signup/label explains when signup is off.
 	if (user && !event.locals.membership && !isNoLabelAllowed(event.url.pathname)) {
-		redirect(303, '/signup/label');
+		return privateRedirect(event.request, '/signup/label');
 	}
 
 	// A closed label (migration 0027) does nothing until it is reopened or purged. Owners can still
@@ -146,7 +147,7 @@ const appHandle: Handle = async ({ event, resolve }) => {
 		event.url.pathname !== '/org' &&
 		!isClosedAllowed(event.url.pathname)
 	) {
-		redirect(303, '/org/closed');
+		return privateRedirect(event.request, '/org/closed');
 	}
 
 	// First run: send a member who hasn't finished onboarding to the welcome page.
@@ -154,7 +155,7 @@ const appHandle: Handle = async ({ event, resolve }) => {
 		!isMachineRoute(event.url.pathname) &&
 		needsOnboarding(event.locals.membership, event.url.pathname, ONBOARDING_EXEMPT)
 	) {
-		redirect(303, '/onboarding');
+		return privateRedirect(event.request, '/onboarding');
 	}
 
 	const response = await resolve(event, {
@@ -162,8 +163,14 @@ const appHandle: Handle = async ({ event, resolve }) => {
 			name === 'content-range' || name === 'x-supabase-api-version'
 	});
 	for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
-	return response;
+	return !isPublic || (event.url.pathname === '/' && user) ? noindex(response) : response;
 };
+
+function privateRedirect(request: Request, location: string): Response {
+	// Preserve SvelteKit's enhanced form-action redirect handling.
+	if (request.method !== 'GET' && request.method !== 'HEAD') redirect(303, location);
+	return noindex(new Response(null, { status: 303, headers: { Location: location } }));
+}
 
 const ordinaryHandle = SENTRY_DSN ? sequence(Sentry.sentryHandle(), appHandle) : appHandle;
 /** Exact anonymous boundary BEFORE Auth, cookies, tenant lookups and Sentry request capture. */
@@ -172,10 +179,14 @@ export const handle: Handle = async (input) => {
 	// api.labelkit.co serves the API and nothing else: no pages, cookies, Auth or machine routes.
 	if (isApiHost(input.event.url.host)) {
 		const route = apiHostRoute(path);
-		if (route === 'api') return apiHandle(input);
-		if (route === 'openapi') return publicApiDocument(input);
-		return jsonResponse(route === 'index' ? 200 : 404, route === 'index' ? API_INDEX : NOT_FOUND);
+		if (route === 'api') return noindex(await apiHandle(input));
+		if (route === 'openapi') return noindex(await publicApiDocument(input));
+		return noindex(
+			jsonResponse(route === 'index' ? 200 : 404, route === 'index' ? API_INDEX : NOT_FOUND)
+		);
 	}
+	const metadata = crawlerMetadata(input.event.url, input.event.request.method);
+	if (metadata) return metadata;
 	// labelkit.co and custom domains don't serve the API (a plain 404); local dev and previews do.
 	if (path.startsWith('/v1/') && !servesApiForTesting(input.event.url.host))
 		return jsonResponse(404, NOT_FOUND);

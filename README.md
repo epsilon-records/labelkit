@@ -1,4 +1,6 @@
-# ERMS — Epsilon Records Management System
+# LabelKit
+
+ERMS is Epsilon Records’ own LabelKit instance.
 
 The label's system of record: catalog, rights, releases, distribution and royalties.
 Audio processing is delegated to [AudioKit](https://github.com/epsilon-records/audiokit) through an `AudioProvider` interface that speaks AudioKit's OpenAPI contract. `contract.drift.test.ts` checks it against that contract: set `AUDIOKIT_OPENAPI` to a path or URL of AudioKit's `openapi.yaml` before `pnpm test` (CI fetches it).
