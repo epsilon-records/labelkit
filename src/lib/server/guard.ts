@@ -6,5 +6,11 @@ export function requireScope(locals: App.Locals, scope: Scope) {
 	const m = locals.membership;
 	if (!m) error(403, 'You are not a member of an organisation yet.');
 	if (!hasScope(m.role, scope)) error(403, `Your role (${m.role}) does not allow ${scope}.`);
+	if (
+		m.role === 'agent' &&
+		scope === 'catalog:write' &&
+		!locals.apiKey?.scopes.includes('catalog:write')
+	)
+		error(403, 'This agent key lacks catalog:write.');
 	return m;
 }

@@ -20,8 +20,9 @@
 		<div class="eyebrow"><span>{data.orgName}</span></div>
 		<h1 class="title">API keys</h1>
 		<p class="soft">
-			Keys for the LabelKit API at <code>/v1</code>. A key reads this label's catalogue and can
-			request analysis, never more. Send it as <code>Authorization: Bearer lk_…</code>.
+			Keys for the LabelKit API at <code>/v1</code>. Keys have only the selected scopes. Enable
+			catalog:write explicitly to let a key create catalogue records. Send it as
+			<code>Authorization: Bearer lk_…</code>.
 		</p>
 	</section>
 

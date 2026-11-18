@@ -1,3 +1,13 @@
+packages:
+  # The app is the root package. Anything that ships on its own lives under packages/ (EPSILON-138).
+  - packages/*
 engineStrict: true
 onlyBuiltDependencies:
   - esbuild
+auditConfig:
+  ignoreGhsas:
+    # picomatch ReDoS (GHSA-fc5q-39xc-vjpf), published 2026-11-17, with no patched release yet.
+    # The only production path is @sentry/sveltekit > vite > picomatch. vite is build tooling,
+    # and no request handler passes untrusted input to picomatch. Remove this entry once a
+    # patched picomatch ships.
+    - GHSA-fc5q-39xc-vjpf
