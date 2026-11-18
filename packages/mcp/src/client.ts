@@ -66,6 +66,7 @@ export class LabelKitClient implements LabelKitApi {
 		}
 
 		let response: Response;
+		let text: string;
 		try {
 			response = await this.#fetch(url, {
 				method: 'GET',
@@ -78,6 +79,8 @@ export class LabelKitClient implements LabelKitApi {
 				redirect: 'error',
 				signal: AbortSignal.timeout(this.#timeoutMs)
 			});
+			// The body can fail or time out after the headers arrive; that is a transport failure too.
+			text = await response.text();
 		} catch (e) {
 			const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
 			const cause = (e as { cause?: { code?: string } }).cause?.code;
@@ -90,7 +93,6 @@ export class LabelKitClient implements LabelKitApi {
 			);
 		}
 
-		const text = await response.text();
 		let body: unknown;
 		try {
 			body = JSON.parse(text);
