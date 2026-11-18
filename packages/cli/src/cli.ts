@@ -25,6 +25,34 @@ type Request = { path: string; query?: Query; auth?: true };
 
 class UsageError extends Error {}
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function searchQuery(raw: string): string {
+	const query = raw.replace(/\s+/g, ' ').trim();
+	// Match GET /v1/search, which checks the raw input before collapsing whitespace.
+	// eslint-disable-next-line no-control-regex -- the API refuses ASCII control characters.
+	if (/[\u0000-\u001f\u007f]/.test(raw) || !query || query.length > 120) {
+		throw new UsageError('Search requires 1 to 120 characters and no control characters.');
+	}
+	return query;
+}
+
+function isReleasePage(response: unknown): boolean {
+	if (!response || typeof response !== 'object') return false;
+	const { data, next_cursor } = response as Record<string, unknown>;
+	return (
+		Array.isArray(data) &&
+		(next_cursor === null || (typeof next_cursor === 'string' && UUID.test(next_cursor)))
+	);
+}
+
+function terminalText(text: string): string {
+	return text.replace(
+		/[\p{Cc}\p{Cf}]/gu,
+		(char) => '\\u{' + char.codePointAt(0)?.toString(16) + '}'
+	);
+}
+
 function args(argv: string[]) {
 	try {
 		return parseArgs({
@@ -55,8 +83,8 @@ function requestFor(
 	if (command === 'auth' && positionals.length === 1 && !paginated) {
 		return { path: '/v1/releases', query: { limit: 1 }, auth: true };
 	}
-	if (command === 'search' && positionals.length === 2 && action?.trim() && !paginated) {
-		return { path: '/v1/search', query: { q: action } };
+	if (command === 'search' && positionals.length === 2 && action !== undefined && !paginated) {
+		return { path: '/v1/search', query: { q: searchQuery(action) } };
 	}
 	if (command === 'releases' || command === 'recordings') {
 		const path = '/v1/' + command;
@@ -65,9 +93,13 @@ function requestFor(
 			if (size !== undefined && (!/^\d+$/.test(limit!) || size < 1 || size > 200)) {
 				throw new UsageError('--limit must be an integer from 1 to 200.');
 			}
+			if (after !== undefined && !UUID.test(after)) {
+				throw new UsageError('--after must be a UUID from a previous page.');
+			}
 			return { path, query: { limit: size, after } };
 		}
-		if (action === 'get' && id && extra.length === 0 && !paginated && id !== '.' && id !== '..') {
+		if (action === 'get' && id && extra.length === 0 && !paginated) {
+			if (!UUID.test(id)) throw new UsageError('ID must be a UUID.');
 			return { path: path + '/' + encodeURIComponent(id) };
 		}
 	}
@@ -98,17 +130,28 @@ export async function run(argv: string[], io: Io): Promise<number> {
 			return 0;
 		}
 		const request = requestFor(positionals, values.limit, values.after);
+		if (values.url !== undefined && !values.url.trim()) {
+			throw new UsageError('--url must not be empty.');
+		}
 		const file = await fileConfig(values.config ?? io.env.LABELKIT_CONFIG);
 		const key = values['api-key'] ?? io.env.LABELKIT_API_KEY ?? file.apiKey;
 		if (!key?.trim())
 			throw new ConfigError('Set LABELKIT_API_KEY or supply an API key in your config file.');
+		const url = values.url ?? io.env.LABELKIT_URL ?? file.url;
+		if (url !== undefined && !url.trim()) throw new ConfigError('LABELKIT_URL must not be empty.');
 		const config = loadConfig({
 			LABELKIT_API_KEY: key,
-			LABELKIT_API_URL: values.url ?? io.env.LABELKIT_URL ?? file.url
+			LABELKIT_API_URL: url
 		});
 
+		if (new URL(config.baseUrl).protocol !== 'https:') {
+			throw new ConfigError('The LabelKit CLI requires HTTPS.');
+		}
 		const client = new LabelKitClient({ ...config, fetch: io.fetch });
 		const response = await client.get(request.path, request.query);
+		if (request.auth && !isReleasePage(response)) {
+			throw new TransportError('The LabelKit API did not return a release page.');
+		}
 		const result = request.auth ? { authenticated: true } : response;
 		const output = values.json
 			? JSON.stringify(result, null, 2)
@@ -128,7 +171,9 @@ export async function run(argv: string[], io: Io): Promise<number> {
 			return 2;
 		}
 		if (error instanceof ApiError) {
-			io.err(`Error: HTTP ${error.status} (${error.code}): ${error.message}`);
+			io.err(
+				`Error: HTTP ${error.status} (${terminalText(error.code)}): ${terminalText(error.message)}`
+			);
 		} else if (error instanceof TransportError || error instanceof ConfigError) {
 			io.err('Error: ' + error.message.replaceAll('LABELKIT_API_URL', 'LABELKIT_URL'));
 		} else {

@@ -19,7 +19,7 @@ The package is built and installed locally from the checkout. Run `labelkit --he
 
 Set `LABELKIT_API_KEY` in your environment, or provide a JSON file with an `apiKey` string via `--config FILE` or `LABELKIT_CONFIG`. An optional `url` setting overrides the default API origin, `https://api.labelkit.co`. Keep the file readable only by you and outside version control.
 
-Flags `--url` and `--api-key` take precedence over `LABELKIT_URL` and `LABELKIT_API_KEY`, which take precedence over the file. Prefer the environment or a protected file for the key so it stays out of shell history and process arguments. Use HTTPS for remote hosts.
+Flags `--url` and `--api-key` take precedence over `LABELKIT_URL` and `LABELKIT_API_KEY`, which take precedence over the file. Prefer the environment or a protected file for the key so it stays out of shell history and process arguments. The CLI requires HTTPS.
 
 ## Commands
 
