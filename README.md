@@ -353,8 +353,11 @@ None go in the repo.
 
 Knowledge labelkit 0034/0035: a label's auth email carries the label's own name, and its own sender
 domain if it has one. Behind the per-org PostHog flag **`labelkit-branded-auth-email`** (default
-off, `features.ts`). With the flag off for an org, with PostHog's keys unset, or when anything in
-this path fails, the hook runs exactly the rules above. Code: `src/lib/server/auth-email/branding.ts`.
+off, `features.ts`). With the flag off for an org, with PostHog's keys unset, or when the org lookup
+or the flag check fails or runs out of time, the hook runs exactly the rules above. Once an email is
+branded it does not go back to those rules: a label key that does not open sends from
+`auth.labelkit.co` under the label's name (see **Sender** below), and a missing
+`RESEND_KEY_LABELKIT` fails closed. Code: `src/lib/server/auth-email/branding.ts`.
 
 - **Which org.** An invite: the inviting org (`invited_org_id`, trusted for invites only, as above).
   Every other email: the org whose **active** custom domain (`orgs.custom_domain`,
