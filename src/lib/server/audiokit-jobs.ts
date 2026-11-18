@@ -28,7 +28,7 @@ export class JobError extends Error {
 }
 
 export function canSubmitJobs(role: Role) {
-	return hasScope(role, 'catalog:write');
+	return role !== 'agent' && hasScope(role, 'catalog:write');
 }
 
 function assertCanSubmit(ctx: JobsCtx) {
