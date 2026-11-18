@@ -1,0 +1,19 @@
+{
+	"ern_version": "4.3",
+	"namespace": "http://ddex.net/xml/ern/43",
+	"avs_version": "12",
+	"checked_on": "2026-11-17",
+	"licensing": "Evaluation development/testing only; schemas downloaded outside the repository. Production licensing remains with Nate/Oracle.",
+	"files": [
+		{
+			"name": "release-notification.xsd",
+			"url": "https://service.ddex.net/xml/ern/43/release-notification.xsd",
+			"sha256": "186d9ce6e9401c0bf47b63b7ae6dead01bf48324ba7308ec3074b32b7853f5e9"
+		},
+		{
+			"name": "allowed-value-sets.xsd",
+			"url": "https://service.ddex.net/xml/allowed-value-sets/allowed-value-sets.xsd",
+			"sha256": "03f290c5a6715e45dcdde5f4fa2b44821c3372331f5bec0b17c802d6fa0e8385"
+		}
+	]
+}
