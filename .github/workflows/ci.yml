@@ -114,6 +114,10 @@ jobs:
         env:
           SENTRY_AUTH_TOKEN: ${{ github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN || '' }}
 
+      - name: Cold function startup budget (fresh adapter handlers)
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        run: node scripts/cold-start-budget.mjs
+
       - name: Stop the stack
         if: always()
         run: supabase stop
