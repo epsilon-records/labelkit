@@ -92,8 +92,7 @@ it.each([
 	[['releases', 'list', '--after='], 2],
 	[['recordings', 'list', '--after', 'invalid'], 2],
 	[['releases', 'get', 'invalid'], 2],
-	[['auth', '--url='], 2],
-	[['auth', '--url', 'http://127.0.0.1:4173'], 1]
+	[['auth', '--url='], 2]
 ])('rejects %j before sending requests', async (args, code) => {
 	const io = mock();
 	expect(await run(args, io)).toBe(code);
@@ -113,3 +112,13 @@ it('escapes terminal controls in API errors', async () => {
 	expect(await run(['auth'], io)).toBe(1);
 	expect(io.err).toHaveBeenCalledWith('Error: HTTP 400 (invalid\\u{a}code): Hidden\\u{1b}');
 });
+
+it.each(['http://127.0.0.1:4173', 'http://api.labelkit.test'])(
+	'explains the HTTPS requirement for %s before fetching',
+	async (url) => {
+		const io = mock();
+		expect(await run(['auth', '--url', url], io)).toBe(1);
+		expect(io.fetch).not.toHaveBeenCalled();
+		expect(io.err).toHaveBeenCalledExactlyOnceWith('Error: The LabelKit CLI requires HTTPS.');
+	}
+);

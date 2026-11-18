@@ -139,14 +139,14 @@ export async function run(argv: string[], io: Io): Promise<number> {
 			throw new ConfigError('Set LABELKIT_API_KEY or supply an API key in your config file.');
 		const url = values.url ?? io.env.LABELKIT_URL ?? file.url;
 		if (url !== undefined && !url.trim()) throw new ConfigError('LABELKIT_URL must not be empty.');
+		if (url && URL.canParse(url) && new URL(url).protocol !== 'https:') {
+			throw new ConfigError('The LabelKit CLI requires HTTPS.');
+		}
 		const config = loadConfig({
 			LABELKIT_API_KEY: key,
 			LABELKIT_API_URL: url
 		});
 
-		if (new URL(config.baseUrl).protocol !== 'https:') {
-			throw new ConfigError('The LabelKit CLI requires HTTPS.');
-		}
 		const client = new LabelKitClient({ ...config, fetch: io.fetch });
 		const response = await client.get(request.path, request.query);
 		if (request.auth && !isReleasePage(response)) {
