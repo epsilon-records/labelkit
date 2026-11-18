@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 const pages = [
 	{ path: '/', heading: "Run your label's catalogue, rights and masters in one place." },
@@ -9,7 +10,7 @@ const pages = [
 ];
 
 for (const { path, heading } of pages) {
-	test(`${path} loads without browser errors`, async ({ page }) => {
+	test(`${path} loads without browser errors`, async ({ page }, testInfo) => {
 		const errors: string[] = [];
 		page.on('console', (message) => {
 			if (message.type() === 'error') errors.push(message.text());
@@ -21,6 +22,15 @@ for (const { path, heading } of pages) {
 		await expect(page.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible();
 		// Wait for client hydration and its requests as well as the initial HTML.
 		await page.waitForLoadState('networkidle');
+		const { violations } = await new AxeBuilder({ page }).analyze();
+		await testInfo.attach('axe-violations', {
+			body: JSON.stringify(violations, null, 2),
+			contentType: 'application/json'
+		});
+		const blocking = violations.filter(
+			({ impact }) => impact === 'serious' || impact === 'critical'
+		);
+		expect(blocking, `Serious/critical axe violations on ${path}`).toEqual([]);
 		expect(errors).toEqual([]);
 	});
 }
