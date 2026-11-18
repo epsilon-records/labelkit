@@ -1018,9 +1018,26 @@ export const apiKeys = pgTable(
 		check('api_keys_sha256_format', sql`${t.keySha256} ~ '^[0-9a-f]{64}$'`),
 		check(
 			'api_keys_scopes_allowed',
-			sql`${t.scopes} <@ ARRAY['catalog:read','processing:request']::text[] AND cardinality(${t.scopes}) > 0`
+			sql`${t.scopes} <@ ARRAY['catalog:read','catalog:write','processing:request']::text[] AND cardinality(${t.scopes}) > 0`
 		)
 	]
 );
 
 export type ApiKey = typeof apiKeys.$inferSelect;
+
+/** Retry receipts are private to one API actor and route; never returned in catalogue lists. */
+export const apiCreateRequests = pgTable(
+	'api_create_requests',
+	{
+		orgId: uuid('org_id')
+			.notNull()
+			.references(() => orgs.id, { onDelete: 'cascade' }),
+		actorId: uuid('actor_id').notNull(),
+		route: text('route').notNull(),
+		key: text('key').notNull(),
+		fingerprint: text('fingerprint').notNull(),
+		response: jsonb('response').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.orgId, t.actorId, t.route, t.key] })]
+);
