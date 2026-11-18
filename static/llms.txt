@@ -1,6 +1,6 @@
 # LabelKit
 
-> LabelKit is label software for independent record labels and collectives: releases, recordings, compositions, credits and splits, agreements, artist consents (including AI use) and WAV masters, kept in one place per label. Masters are measured for loudness, key and tempo by AudioKit. It was built inside a working independent label first and is now open to other labels. Nothing in a label's catalogue is used to train AI without a consent the label recorded, per artist and per track.
+> LabelKit is API-first record-label management software for independent record labels and collectives: releases, recordings, compositions, credits and splits, agreements, artist consents (including AI use) and WAV masters, kept in one place per label. Masters are measured for loudness, key and tempo by AudioKit. It was built inside a working independent label first and is now open to other labels. Nothing in a label's catalogue is used to train AI without a consent the label recorded, per artist and per track.
 
 ## What it does today
 
@@ -17,7 +17,7 @@ Coming, not available yet: delivery to Spotify, Apple Music and other stores (th
 
 ## API
 
-LabelKit has a read-only REST API for a label's catalogue, at `https://api.labelkit.co`.
+LabelKit is built API-first. Its public REST API, at `https://api.labelkit.co`, is read-only for now: it reads a label's catalogue; creating records through it is coming.
 
 - Contract (OpenAPI 3.1, the source of truth): https://api.labelkit.co/v1/openapi.yaml (no key needed)
 - Sign-in: `Authorization: Bearer lk_<prefix>_<secret>`. A label owner creates keys in the app under API keys; each key sees only its own label's catalogue. Keys with the `catalog:read` scope can read.
