@@ -45,6 +45,18 @@ const projects: TestProjectConfiguration[] = [
 ];
 
 export default defineConfig(async () => ({
+	// Compile the cold hook graph into server chunks: avoid hundreds of individual package
+	// resolutions/reads per new function. Keep SDK options and the lazy DB pool unchanged.
+	ssr: {
+		noExternal: [
+			/^@sentry\//,
+			/^@opentelemetry\//,
+			/^@supabase\//,
+			'drizzle-orm',
+			'postgres',
+			'zod'
+		]
+	},
 	// Sentry environment and release for both hooks, fixed at build time from Netlify's
 	// build variables so browser and server events are tagged alike and deploy previews
 	// (CONTEXT=deploy-preview) don't report as production.
