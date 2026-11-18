@@ -282,7 +282,7 @@ const apiHandle: Handle = async ({ event, resolve }) => {
 	if (!resolved) return fail(401, 'unauthorized', 'Missing or invalid API key.');
 	event.locals.membership = { orgId: resolved.orgId, orgName: resolved.orgName, role: 'agent' };
 	event.locals.memberships = [event.locals.membership];
-	event.locals.apiKey = { id: resolved.id, scopes: resolved.scopes };
+	event.locals.apiKey = { id: resolved.id, actorId: resolved.actorId, scopes: resolved.scopes };
 	event.locals.db = scopedTo(db(), resolved.actorId);
 	const response = await resolve(event);
 	for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);

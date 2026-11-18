@@ -1,0 +1,34 @@
+name: ERN schema validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  official-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUBLIC_SUPABASE_URL: https://example.supabase.co
+      PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci
+      TEST_DATABASE_URL: postgres://unused:unused@127.0.0.1:1/unused
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the offline XML schema validator
+        run: sudo apt-get update && sudo apt-get install --yes libxml2-utils
+      - name: Exercise every mapping rule and generate development fixtures
+        run: ERN_FIXTURE_DIR="$RUNNER_TEMP/ern-fixtures" pnpm exec vitest run --project unit src/lib/server/ddex/ern-mapping.test.ts
+      - name: Check official checksum-pinned ERN and AVS schemas, including negative controls
+        run: python3 scripts/validate-ern.py --xml-dir "$RUNNER_TEMP/ern-fixtures" --schema-dir "$RUNNER_TEMP/ern-schemas"
