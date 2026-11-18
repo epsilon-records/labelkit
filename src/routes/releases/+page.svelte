@@ -22,6 +22,7 @@
 		<div class="stack">
 			<div class="eyebrow"><span>{filtered.length} of {data.releases.length}</span></div>
 			<h1 class="title">Releases</h1>
+			{#if data.canCreate}<a href="/releases/new" class="btn primary">New release</a>{/if}
 		</div>
 		<div style="width: 320px; max-width: 100%">
 			<label for="filter" class="sr-only">Filter releases</label>

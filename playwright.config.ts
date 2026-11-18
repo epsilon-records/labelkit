@@ -8,7 +8,14 @@ export default defineConfig({
 		baseURL: 'http://127.0.0.1:4173',
 		trace: 'retain-on-failure'
 	},
-	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+	projects: [
+		{ name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: '**/*.mobile.spec.ts' },
+		{
+			name: 'mobile-webkit',
+			use: { ...devices['iPhone 15'], browserName: 'webkit' },
+			testMatch: '**/*.mobile.spec.ts'
+		}
+	],
 	webServer: {
 		command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 4173 --strictPort',
 		url: 'http://127.0.0.1:4173/login',
