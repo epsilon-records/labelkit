@@ -9,9 +9,8 @@ name: API property tests
 # - The app gets a placeholder Supabase URL and no other secret: no Stripe, no AudioKit, no
 #   Resend, no Sentry, no R2. The /v1 routes only read the database.
 # - The only key is one generated per run, stored hashed in the throwaway database.
-# - Every /v1 operation today is a read, so none is stubbed or excluded for side effects. The
-#   "Only reads are fuzzed" step fails the job when a write operation appears, so that whoever adds
-#   one has to stub or exclude it (with a reason) in schemathesis.toml first.
+# - Writes are excluded explicitly by operation id in schemathesis.toml; deterministic database
+#   tests cover their side effects. The guard refuses any new write without an explicit exclusion.
 #
 # Netlify: this file and .github/schemathesis/** don't redeploy the site, because netlify.toml's
 # ignore rule excludes .github (shared 0048: Free plan credits).
@@ -26,6 +25,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - vite.config.ts
+      - scripts/api-create-smoke.mjs
       - supabase/config.toml
       - .github/workflows/api-fuzz.yml
       - '.github/schemathesis/**'
@@ -37,6 +37,7 @@ on:
       - package.json
       - pnpm-lock.yaml
       - vite.config.ts
+      - scripts/api-create-smoke.mjs
       - supabase/config.toml
       - .github/workflows/api-fuzz.yml
       - '.github/schemathesis/**'
@@ -81,20 +82,23 @@ jobs:
           python - <<'PY'
           import sys
           import yaml
+          import tomllib
 
           spec = yaml.safe_load(open("docs/openapi.yaml"))
           reads = {"get", "head", "options"}
           methods = reads | {"put", "post", "patch", "delete", "trace", "query"}
+          config = tomllib.load(open(".github/schemathesis/schemathesis.toml", "rb"))
+          disabled = {op.get("include-operation-id") for op in config.get("operations", []) if op.get("enabled") is False}
           writes = [
               f"{method.upper()} {path}"
               for path, item in (spec.get("paths") or {}).items()
               for method in item
-              if method.lower() in methods - reads
+              if method.lower() in methods - reads and item[method].get("operationId") not in disabled
           ]
           if writes:
               print(f"::error::docs/openapi.yaml has write operations: {', '.join(writes)}. Stub or exclude each in .github/schemathesis/schemathesis.toml with a reason, then update this check.")
               sys.exit(1)
-          print("All operations are reads.")
+          print("All fuzzed operations are reads; writes are explicitly excluded.")
           PY
 
       - uses: supabase/setup-cli@v3
@@ -129,6 +133,9 @@ jobs:
           exit 1
 
       # Local requests count as the API host (src/lib/server/api-host.ts), so /v1 is served here.
+      - name: Deterministic create HTTP and audit proof
+        run: node scripts/api-create-smoke.mjs
+
       - name: Schemathesis
         timeout-minutes: 5
         run: |
