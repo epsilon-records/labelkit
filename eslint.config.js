@@ -12,6 +12,7 @@ export default ts.config(
 			'build/',
 			'.netlify/',
 			'storybook-site/dist/',
+			'packages/*/dist/',
 			'node_modules/',
 			'drizzle/',
 			'coverage/',
