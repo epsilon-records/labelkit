@@ -11,7 +11,8 @@ const projects: TestProjectConfiguration[] = [
 		extends: true,
 		test: {
 			name: 'unit',
-			include: ['src/**/*.test.ts'],
+			// packages/mcp (EPSILON-138) is its own package; its unit tests run here too, so `pnpm test` covers it.
+			include: ['src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
 			environment: 'node',
 			// Builds the migrated template on the local Supabase stack that database tests copy from.
 			globalSetup: ['src/lib/server/test-db.global.ts']
