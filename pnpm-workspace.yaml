@@ -1,3 +1,6 @@
+packages:
+  # The app is the root package. Anything that ships on its own lives under packages/ (EPSILON-138).
+  - packages/*
 engineStrict: true
 onlyBuiltDependencies:
   - esbuild
