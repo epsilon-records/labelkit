@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   # Everything that touches a database runs on Supabase's own local stack: production's server
   # build (PostgreSQL 17, pinned in supabase/config.toml), Supabase's anon / authenticated /
@@ -24,9 +27,9 @@ jobs:
       PUBLIC_SUPABASE_URL: https://example.supabase.co
       PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -41,7 +44,7 @@ jobs:
         run: pnpm --filter ./packages/cli build && node packages/cli/dist/cli/src/main.js --help
       - run: pnpm db:check
 
-      - uses: supabase/setup-cli@v3
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       - name: Start the Supabase stack
@@ -100,7 +103,7 @@ jobs:
         env:
           METRICS_PROOF_PATH: ${{ runner.temp }}/app-metrics-proof.json
         run: node scripts/app-metrics-browser-db.mjs
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: app-metrics-proof
@@ -125,7 +128,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       # Scans the full history for committed keys, tokens and passwords.
@@ -141,9 +144,9 @@ jobs:
       PUBLIC_SUPABASE_URL: https://example.supabase.co
       PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -156,18 +159,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm test:e2e
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: failure()
         with:
           name: public-pages-test-results
