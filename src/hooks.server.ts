@@ -189,7 +189,7 @@ export const handle: Handle = async (input) => {
 	if (metadata) return metadata;
 	// labelkit.co and custom domains don't serve the API (a plain 404); local dev and previews do.
 	if (path.startsWith('/v1/') && !servesApiForTesting(input.event.url.host))
-		return jsonResponse(404, NOT_FOUND);
+		return noindex(jsonResponse(404, NOT_FOUND));
 	if (path === OPENAPI_PATH) return publicApiDocument(input);
 	// Supabase Auth's Send Email hook (EPSILON-147): a machine caller with no session. It skips
 	// cookies, Auth and branding, and gets only the labelkit_auth_email runner; the route verifies the

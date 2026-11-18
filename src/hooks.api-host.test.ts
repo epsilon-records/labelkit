@@ -90,6 +90,7 @@ it('does not serve the API on labelkit.co or a custom domain: a plain 404', asyn
 		expect(res.status, href).toBe(404);
 		expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
 		expect(res.headers.get('location')).toBeNull();
+		expect(res.headers.get('x-robots-tag')).toBe('noindex');
 	}
 	expect(never).not.toHaveBeenCalled();
 });
