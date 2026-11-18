@@ -3,8 +3,9 @@
   publish = "build"
   # Each production deploy costs 15 Free-plan credits (shared 0048): skip a build when a commit
   # only touches the Storybook site (its own Netlify site, shared 0061) or .github (workflows and
-  # CI config, which the site doesn't use). An uncached build (equal refs) always builds.
-  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && [ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)storybook-site' ':(exclude).github'"
+  # CI config, which the site doesn't use) or packages/ (npm packages built and tested in CI, not part
+  # of the site). An uncached build (equal refs) always builds.
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && [ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)storybook-site' ':(exclude).github' ':(exclude)packages'"
 
 [build.environment]
   NODE_VERSION = "22"

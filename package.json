@@ -8,7 +8,7 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo \"\"",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && pnpm --filter labelkit-co check",
 		"test": "vitest run --project unit",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
@@ -25,6 +25,7 @@
 		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
+		"@axe-core/playwright": "^4.14.0",
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.65.0",
 		"@storybook/addon-a11y": "^10.6.7",
