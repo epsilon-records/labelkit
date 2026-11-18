@@ -15,6 +15,7 @@ import type { Scope } from '#lib/server/rbac.js';
 
 export const API_KEY_SCOPES = [
 	'catalog:read',
+	'catalog:write',
 	'processing:request'
 ] as const satisfies readonly Scope[];
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
