@@ -3,7 +3,8 @@
 	import '../tailwind.css';
 	import { onMount, tick } from 'svelte';
 	import { afterNavigate, beforeNavigate, replaceState } from '$app/navigation';
-	import { navigating, page, updated } from '$app/state';
+	import { page, updated } from '$app/state';
+	import { assetRecovery } from '#lib/stale-assets.js';
 	import { browser } from '$app/env';
 	import { PUBLIC_APP_METRICS_ENABLED } from '$app/env/public';
 	import AppMetrics from '#lib/AppMetrics.svelte';
@@ -44,25 +45,16 @@
 		}
 	});
 
-	// After a deploy, an open tab still points at JS chunks the new build no longer serves
-	// (Sentry LABELKIT-8, EPSILON-191). Once SvelteKit sees a new version, or a chunk has failed to
-	// load, the next in-app navigation becomes a full page load. A chunk that fails during a
-	// navigation sends the browser to that page with a full load. A chunk that fails while a link is
-	// only being preloaded on hover never reloads the current page, so unsaved form state survives.
-	let staleChunks = false;
-	beforeNavigate(({ willUnload, to }) => {
-		if ((updated.current || staleChunks) && !willUnload && to?.url) location.href = to.url.href;
-	});
-	onMount(() => {
-		const onPreloadError = (event: Event) => {
-			staleChunks = true;
-			const target = navigating.to?.url;
-			if (!target) return;
-			event.preventDefault();
-			location.href = target.href;
-		};
-		window.addEventListener('vite:preloadError', onPreloadError);
-		return () => window.removeEventListener('vite:preloadError', onPreloadError);
+	// The client hook handles asset failures; this catches a known new version before loading chunks.
+	beforeNavigate(({ cancel, willUnload, to }) => {
+		if (
+			(updated.current || assetRecovery.stale) &&
+			!willUnload &&
+			to?.url &&
+			assetRecovery.reload(to.url)
+		) {
+			cancel();
+		}
 	});
 
 	const canImport = $derived(
@@ -75,6 +67,7 @@
 	const nav = $derived([
 		{ href: '/releases', label: 'Releases' },
 		{ href: '/artists', label: 'Artists' },
+		{ href: '/recordings', label: 'Recordings' },
 		{ href: '/compositions', label: 'Compositions' },
 		...(canRights ? [{ href: '/rights', label: 'Rights' }] : []),
 		...(canImport ? [{ href: '/import', label: 'Import' }] : []),

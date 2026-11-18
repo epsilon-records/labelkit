@@ -16,7 +16,7 @@ import { credits, labels, parties, recordings, releases } from './db/schema';
 
 export const SEARCH_LIMIT = 25;
 /** Longest query we search on. Longer input is cut, not rejected. */
-const MAX_QUERY = 120;
+export const MAX_QUERY = 120;
 /** Identifier prefixes shorter than this would match too much. */
 const MIN_CODE = 4;
 
