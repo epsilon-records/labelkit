@@ -403,8 +403,13 @@ then runs the request as that agent with `scopedTo`, so `/v1` goes through the s
   `app.create_api_key` and `app.revoke_api_key`, which write the audit entry. Revoking a key deletes
   its agent membership too.
 - **Members and seats:** agent members don't appear on the Members page and don't use a plan seat.
+- **Reads (all `catalog:read`):** `GET /v1/releases`, `/v1/releases/{id}`, `/v1/recordings`,
+  `/v1/recordings/{id}`, `/v1/search?q=` and `/v1/recordings/{id}/analysis` (EPSILON-138). Search is
+  not paged: at most 25 releases, recordings and artists. Analysis reads what AudioKit jobs stored
+  and runs nothing.
 - **Spec:** `docs/openapi.yaml`. `openapi.test.ts` checks that it lists exactly the routes under
-  `src/routes/v1`.
+  `src/routes/v1`, and `v1.db.test.ts` checks that what each route sends matches its response
+  schema, and that a key from another label reads none of it.
 
 ## Branding and custom domains
 
