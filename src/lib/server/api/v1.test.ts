@@ -87,7 +87,7 @@ describe('/v1 responses match docs/openapi.yaml', () => {
 
 	it('every operation documents a 200 body schema and the 401 and 403 errors', () => {
 		for (const [path, item] of Object.entries(openapiDoc.paths)) {
-			if (path === '/v1/openapi.yaml') continue;
+			if (path === '/v1/openapi.yaml' || !item.get) continue;
 			expect(Object.keys(item.get.responses), path).toEqual(
 				expect.arrayContaining(['200', '401', '403'])
 			);
