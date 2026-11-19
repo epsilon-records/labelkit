@@ -25,3 +25,23 @@ unexpected-methods = ["get", "put", "post", "delete", "options", "patch", "query
 [[operations]]
 include-operation-id = "getOpenapi"
 checks.response_schema_conformance.enabled = false
+
+# createRelease mutates the catalogue; deterministic real-Supabase tests cover writes and retries.
+[[operations]]
+include-operation-id = "createRelease"
+enabled = false
+
+# createRecording mutates the catalogue; deterministic real-Supabase tests cover writes and retries.
+[[operations]]
+include-operation-id = "createRecording"
+enabled = false
+
+# createArtist mutates the catalogue; deterministic real-Supabase tests cover writes and retries.
+[[operations]]
+include-operation-id = "createArtist"
+enabled = false
+
+# addTrack mutates the catalogue; deterministic real-Supabase tests cover writes and retries.
+[[operations]]
+include-operation-id = "addTrack"
+enabled = false

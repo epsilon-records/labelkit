@@ -54,13 +54,17 @@ it('is a JSON 404 for every app page and machine route on the API host', async (
 		'/org/billing',
 		'/api/auth/send-email',
 		'/api/app-metrics',
-		'/privacy'
+		'/privacy',
+		'/robots.txt',
+		'/sitemap.xml',
+		'/llms.txt'
 	]) {
 		const res = await handle({
 			event: event(`https://api.labelkit.co${path}`),
 			resolve: never
 		} as never);
 		expect(res.status, path).toBe(404);
+		expect(res.headers.get('x-robots-tag')).toBe('noindex');
 		expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
 	}
 	expect(never).not.toHaveBeenCalled();
@@ -86,6 +90,7 @@ it('does not serve the API on labelkit.co or a custom domain: a plain 404', asyn
 		expect(res.status, href).toBe(404);
 		expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'Not found.' } });
 		expect(res.headers.get('location')).toBeNull();
+		expect(res.headers.get('x-robots-tag')).toBe('noindex');
 	}
 	expect(never).not.toHaveBeenCalled();
 });
@@ -106,3 +111,24 @@ it('serves the OpenAPI document without a key on the API host and on previews', 
 	expect(spies.auth).not.toHaveBeenCalled();
 	expect(spies.ownerDb).not.toHaveBeenCalled();
 });
+
+it.each(['/robots.txt', '/sitemap.xml', '/llms.txt'])(
+	'serves %s only on the canonical site',
+	async (path) => {
+		const publicResponse = await handle({
+			event: event(`https://labelkit.co${path}`),
+			resolve: never
+		} as never);
+		expect(publicResponse.status).toBe(200);
+		expect(publicResponse.headers.get('x-robots-tag')).toBeNull();
+		expect(await publicResponse.text()).toContain('https://labelkit.co');
+
+		const tenantResponse = await handle({
+			event: event(`https://tenant.example${path}`),
+			resolve: never
+		} as never);
+		expect(tenantResponse.status).toBe(404);
+		expect(tenantResponse.headers.get('x-robots-tag')).toBe('noindex');
+		expect(await tenantResponse.text()).toBe('');
+	}
+);

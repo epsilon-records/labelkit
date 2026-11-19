@@ -93,7 +93,11 @@ describe('auth hook allowlist', () => {
 		'/auth/callbackx',
 		'/auth/confirm/extra'
 	])('still redirects the unauthenticated app path %s to /login', async (pathname) => {
-		await expect(runHook(pathname)).rejects.toMatchObject({ status: 303, location: '/login' });
+		const { response, resolved } = await runHook(pathname);
+		expect(resolved).toBe(false);
+		expect(response.status).toBe(303);
+		expect(response.headers.get('location')).toBe('/login');
+		expect(response.headers.get('x-robots-tag')).toBe('noindex');
 	});
 });
 

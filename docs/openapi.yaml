@@ -6,7 +6,10 @@ info:
     Read a label's catalogue. Authenticate with an API key from the API page in LabelKit,
     sent as `Authorization: Bearer lk_…`. A key belongs to one label and sees only that
     label. Errors answer `{"error": {"code", "message"}}`. Lists page by id: pass the
-    previous page's `next_cursor` as `after`. Every operation needs the `catalog:read` scope.
+    previous page's `next_cursor` as `after`. Every read operation needs the `catalog:read` scope.
+    Create endpoints require `catalog:write`. Existing keys keep their scopes; owners opt in by creating a
+    write-enabled key. Optional `Idempotency-Key` receipts are scoped to one key actor and route. Repeating
+    the same JSON returns the original 201 response; a different JSON body with that key returns 409.
 servers:
   - url: https://api.labelkit.co
 security:
@@ -57,6 +60,31 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a release
+      operationId: createRelease
+      description: Requires catalog:write; audited as the key agent. No update or delete operation.
+      parameters:
+        - $ref: '#/components/parameters/idempotency'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRelease' }
+      responses:
+        '201':
+          description: Created, or the original successful idempotent response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [release]
+                properties:
+                  release: { $ref: '#/components/schemas/Release' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /v1/releases/{id}:
     get:
       summary: Get a release with its tracks, credits and artists
@@ -78,6 +106,31 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a recording
+      operationId: createRecording
+      description: Requires catalog:write; audited as the key agent. No update or delete operation.
+      parameters:
+        - $ref: '#/components/parameters/idempotency'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRecording' }
+      responses:
+        '201':
+          description: Created, or the original successful idempotent response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recording]
+                properties:
+                  recording: { $ref: '#/components/schemas/Recording' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /v1/recordings/{id}:
     get:
       summary: Get a recording with its releases and credits
@@ -104,6 +157,69 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /v1/artists:
+    get:
+      summary: List artists
+      operationId: listArtists
+      parameters:
+        [{ $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/after' }]
+      responses:
+        '200': { $ref: '#/components/responses/ArtistPage' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create an artist
+      operationId: createArtist
+      description: Requires catalog:write; audited as the key agent. No update or delete operation.
+      parameters:
+        - $ref: '#/components/parameters/idempotency'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateArtist' }
+      responses:
+        '201':
+          description: Created, or the original successful idempotent response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [artist]
+                properties:
+                  artist: { $ref: '#/components/schemas/Artist' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /v1/releases/{id}/tracks:
+    post:
+      summary: Add a track to a release
+      operationId: addTrack
+      description: Requires catalog:write; audited as the key agent. No update or delete operation.
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/idempotency'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddTrack' }
+      responses:
+        '201':
+          description: Created, or the original successful idempotent response.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recording]
+                properties:
+                  recording: { $ref: '#/components/schemas/Recording' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
 components:
   securitySchemes:
     apiKey: { type: http, scheme: bearer, description: 'lk_<prefix>_<secret>' }
@@ -112,6 +228,14 @@ components:
     limit:
       { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
     after: { name: after, in: query, schema: { type: string, format: uuid } }
+    idempotency:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >-
+        1–200 printable non-space ASCII characters. Retained with the response; scoped to this key
+        actor and route.
+      schema: { type: string, minLength: 1, maxLength: 200, pattern: '^[\x21-\x7e]+$' }
   responses:
     ReleasePage:
       description: A page of releases, oldest first
@@ -123,6 +247,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/RecordingPage' }
+    ArtistPage:
+      description: A page of artists, oldest first
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ArtistPage' }
     ReleaseDetail:
       description: One release
       content:
@@ -187,6 +316,91 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/RecordingSummary' } }
         next_cursor: { type: [string, 'null'], format: uuid }
+    ArtistPage:
+      type: object
+      required: [data, next_cursor]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Artist' } }
+        next_cursor: { type: [string, 'null'], format: uuid }
+    Artist:
+      type: object
+      required: [id]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        display_name: { type: string }
+        kind: { type: string }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+        updated_at: { $ref: '#/components/schemas/Timestamp' }
+    Release:
+      type: object
+      required: [id]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        title: { type: string, minLength: 1 }
+        version_title: { type: [string, 'null'] }
+        release_date: { type: [string, 'null'], description: YYYY-MM-DD or blank. }
+        catalog_number: { type: [string, 'null'] }
+        upc: { type: string, description: 12 or 13 digits with valid check digit. }
+        label_id: { $ref: '#/components/schemas/Id' }
+        genre: { type: [string, 'null'] }
+        subgenre: { type: [string, 'null'] }
+        type: { $ref: '#/components/schemas/ReleaseType' }
+        created_at: { $ref: '#/components/schemas/Timestamp' }
+        updated_at: { $ref: '#/components/schemas/Timestamp' }
+    CreateRelease:
+      type: object
+      additionalProperties: false
+      required: [title, upc, label_id]
+      properties:
+        title: { type: string, minLength: 1 }
+        version_title: { type: string }
+        release_date: { type: string, description: YYYY-MM-DD or blank. }
+        catalog_number: { type: string }
+        upc: { type: string, description: 12 or 13 digits with valid check digit. }
+        label_id: { $ref: '#/components/schemas/Id' }
+        genre: { type: string }
+        subgenre: { type: string }
+    CreateRecording:
+      type: object
+      additionalProperties: false
+      required: [title, isrc]
+      properties:
+        title: { type: string, minLength: 1 }
+        version_title: { type: string }
+        isrc: { type: string, description: 'ISRC, normalized to 12 uppercase letters and digits.' }
+        duration: { type: string, description: 'Optional mm:ss length; blank means unknown.' }
+        genre: { type: string }
+        subgenre: { type: string }
+    CreateArtist:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name: { type: string, minLength: 1 }
+    AddTrack:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, recording_id, disc, position]
+          properties:
+            mode: { const: existing }
+            recording_id: { $ref: '#/components/schemas/Id' }
+            disc: { type: integer, minimum: 1, maximum: 2147483647 }
+            position: { type: integer, minimum: 1, maximum: 2147483647 }
+        - type: object
+          additionalProperties: false
+          required: [mode, title, isrc, disc, position]
+          properties:
+            mode: { const: new }
+            title: { type: string, minLength: 1 }
+            version_title: { type: string }
+            isrc:
+              { type: string, description: 'ISRC, normalized to 12 uppercase letters and digits.' }
+            duration: { type: string, description: 'Optional mm:ss length; blank means unknown.' }
+            genre: { type: string }
+            subgenre: { type: string }
+            disc: { type: integer, minimum: 1, maximum: 2147483647 }
+            position: { type: integer, minimum: 1, maximum: 2147483647 }
     ReleaseSummary:
       type: object
       required:
