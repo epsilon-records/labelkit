@@ -267,6 +267,13 @@
       "when": 1794897884510,
       "tag": "0037_validate_api_receipt_org",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794984000000,
+      "tag": "0038_api_keys_closed_org",
+      "breakpoints": true
     }
   ]
 }
