@@ -20,28 +20,50 @@
 
 <div class="container">
 	<section class="stack">
-		<div class="eyebrow"><span>SymphonicMS inventory export</span></div>
+		<div class="eyebrow"><span>DDEX ERN 4.3</span></div>
 		<h1 class="title">Import</h1>
 	</section>
 
 	{#if !stage || stage === 'blocked'}
 		<form method="POST" action="?/preview" enctype="multipart/form-data" class="stack">
+			<input type="hidden" name="format" value="ern" />
 			<div class="inline-form" style="max-width: 640px">
-				<label for="file" class="sr-only">CSV file</label>
+				<label for="file" class="sr-only">ERN XML or ZIP file</label>
 				<Input
 					id="file"
 					type="file"
 					name="file"
-					accept=".csv,text/csv"
+					accept=".xml,.zip,application/xml,text/xml,application/zip"
 					required
 					class="w-auto flex-[1_1_220px]"
 				/>
 				<Button type="submit" variant="primary">Dry run</Button>
 			</div>
 			<p class="muted" style="margin: 0">
-				A dry run changes nothing. It shows what the import would create or update.
+				Upload one ERN message or a ZIP of messages. The dry run shows catalogue changes and lists
+				data that will be left out, including rights and deal terms.
 			</p>
 		</form>
+		<details class="stack">
+			<summary>Legacy SymphonicMS CSV</summary>
+			<form method="POST" action="?/preview" enctype="multipart/form-data" class="stack">
+				<div class="inline-form" style="max-width: 640px">
+					<label for="legacy-file" class="sr-only">CSV file</label>
+					<Input
+						id="legacy-file"
+						type="file"
+						name="file"
+						accept=".csv,text/csv"
+						required
+						class="w-auto flex-[1_1_220px]"
+					/>
+					<Button type="submit" variant="primary">Dry run</Button>
+				</div>
+				<p class="muted" style="margin: 0">
+					A dry run changes nothing. It shows what the import would create or update.
+				</p>
+			</form>
+		</details>
 	{/if}
 
 	{#if form && 'error' in form && form.error}
@@ -56,7 +78,11 @@
 				<span class="mono muted" title={form.sha256}>sha256 {form.sha256?.slice(0, 16)}…</span>
 			</div>
 			<div class="stats">
-				<div><span class="value">{s.rows}</span><span class="label">Rows</span></div>
+				<div>
+					<span class="value">{s.rows}</span><span class="label"
+						>{form.format === 'ern' ? 'Messages' : 'Rows'}</span
+					>
+				</div>
 				<div><span class="value">{s.releases}</span><span class="label">Releases</span></div>
 				<div><span class="value">{s.recordings}</span><span class="label">Recordings</span></div>
 				<div><span class="value">{s.parties}</span><span class="label">Artists</span></div>
@@ -105,12 +131,20 @@
 		{/if}
 
 		{#if stage === 'previewed'}
-			<form method="POST" action="?/apply" class="btn-group">
-				<input type="hidden" name="csv" value={form.csv} />
-				<input type="hidden" name="fileName" value={form.fileName} />
+			<form method="POST" action="?/apply" enctype="multipart/form-data" class="stack">
+				<input type="hidden" name="format" value={form.format} />
 				<input type="hidden" name="sha256" value={form.sha256} />
-				<Button type="submit" variant="primary">Import now</Button>
-				<a href="/import" class="btn">Cancel</a>
+				{#if form.format === 'ern'}
+					<label for="confirm-file">Select the same file to confirm</label>
+					<Input id="confirm-file" type="file" name="file" accept=".xml,.zip" required />
+				{:else}
+					<input type="hidden" name="csv" value={form.csv} />
+					<input type="hidden" name="fileName" value={form.fileName} />
+				{/if}
+				<div class="btn-group">
+					<Button type="submit" variant="primary">Import now</Button>
+					<a href="/import" class="btn">Cancel</a>
+				</div>
 			</form>
 		{:else if stage === 'imported'}
 			<div class="alert ok" role="status">
@@ -121,9 +155,7 @@
 				{form.limit} <a href="/org/billing">Billing</a>
 			</div>
 		{:else if stage === 'blocked'}
-			<div class="alert error" role="alert">
-				Fix the errors below in SymphonicMS or the file, then run the dry run again.
-			</div>
+			<div class="alert error" role="alert">Review the errors, then run the dry run again.</div>
 		{/if}
 
 		{#if form.issues?.length}
