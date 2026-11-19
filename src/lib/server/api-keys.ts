@@ -134,7 +134,8 @@ export type ResolvedKey = {
 
 /**
  * Look a presented key up by its hash. Called by the request hook on the owner connection (the
- * key is the credential; there is no user yet). Stamps last_used_at at most once a minute.
+ * key is the credential; there is no user yet). A closed label's keys resolve to nothing until an
+ * owner reopens it. Stamps last_used_at at most once a minute.
  */
 export async function resolveApiKey(
 	owner: Database,
@@ -152,7 +153,9 @@ export async function resolveApiKey(
 		})
 		.from(apiKeys)
 		.innerJoin(orgs, eq(orgs.id, apiKeys.orgId))
-		.where(and(eq(apiKeys.keySha256, sha256(key)), isNull(apiKeys.revokedAt)));
+		.where(
+			and(eq(apiKeys.keySha256, sha256(key)), isNull(apiKeys.revokedAt), isNull(orgs.closedAt))
+		);
 	if (!row) return null;
 	if (!row.lastUsedAt || now.getTime() - row.lastUsedAt.getTime() > 60_000) {
 		await owner

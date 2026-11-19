@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createApiKey, listApiKeys, resolveApiKey, revokeApiKey } from './api-keys';
 import { listMembers } from './members';
+import { closeOrg, reopenOrg } from './purge';
 import { labels, memberships, orgs } from './db/schema';
 import { asUser } from './db/scoped';
 import { createTestDb } from './test-db';
@@ -63,6 +64,35 @@ describe('API keys (database)', () => {
 		expect(seen).toEqual([]);
 		const listed = await asUser(db, ownerA, (tx) => listApiKeys(tx, orgA));
 		expect(listed.find((k) => k.id === id)?.revokedAt).not.toBeNull();
+	});
+
+	it("a closed label's keys are refused and cannot create; reopening restores them", async () => {
+		const [{ id: orgC }] = await db
+			.insert(orgs)
+			.values({ name: 'Keys C', slug: 'keys-c' })
+			.returning();
+		await db.insert(memberships).values({ orgId: orgC, userId: ownerA, role: 'owner' });
+		const { key } = await asUser(db, ownerA, (tx) =>
+			createApiKey(tx, orgC, { name: 'Writer', scopes: ['catalog:read', 'catalog:write'] })
+		);
+		const canCreate = async (actor: string) =>
+			asUser(db, actor, async (tx) => {
+				const rows = await tx.execute<{ ok: boolean }>(
+					sql`select app.can_catalog_create(${orgC}::uuid) as ok`
+				);
+				return Boolean((rows as unknown as Array<{ ok: boolean }>)[0]?.ok);
+			});
+		const open = await resolveApiKey(db, key);
+		expect(open).not.toBeNull();
+		expect(await canCreate(open!.actorId)).toBe(true);
+
+		await asUser(db, ownerA, (tx) => closeOrg(tx, orgC));
+		expect(await resolveApiKey(db, key)).toBeNull();
+		expect(await canCreate(open!.actorId)).toBe(false);
+
+		await asUser(db, ownerA, (tx) => reopenOrg(tx, orgC));
+		expect(await resolveApiKey(db, key)).not.toBeNull();
+		expect(await canCreate(open!.actorId)).toBe(true);
 	});
 
 	it('the app role cannot read key hashes', async () => {
