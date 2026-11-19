@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { and, eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { actions } from '../../routes/recordings/[id]/+page.server';
 import { queueJobForLatestMaster } from './audiokit-jobs';
 import { createDb } from './db';
@@ -8,6 +9,7 @@ import { countingProxy } from './db/counting-proxy';
 import { audiokitJobs, auditLog, masters, memberships, orgs, recordings } from './db/schema';
 import { scopedTo } from './db/scoped';
 import { countAnalysesThisMonth, lockLimit } from './plans';
+import * as plansEnv from './plans-env';
 import { createTestDb } from './test-db';
 
 /**
@@ -68,9 +70,8 @@ const ctx = () => ({
 	actor: { id: manager, kind: 'user' as const }
 });
 
-it('queues a Run in four round trips: begin, set role and user, one statement, commit', async () => {
-	let result: unknown;
-	const event = {
+const eventFor = () =>
+	({
 		request: new Request('http://localhost/recordings/x?/runAnalysis', {
 			method: 'POST',
 			body: new URLSearchParams({ operation: 'loudness' })
@@ -81,9 +82,24 @@ it('queues a Run in four round trips: begin, set role and user, one statement, c
 			membership: { orgId, role: 'catalog_manager' },
 			db: scopedTo(db, manager)
 		}
-	} as never;
+	}) as never;
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+});
+
+it('commits a Run and audit under 1 s with 98 ms per exchange in four round trips', async () => {
+	let result: unknown;
+	const event = eventFor();
 	// Six before: withAudit's savepoint and its release were two more.
-	expect(await proxy.count(async () => (result = await actions.runAnalysis(event)))).toBe(4);
+	const started = performance.now();
+	expect(await proxy.count(async () => (result = await actions.runAnalysis(event)), 98)).toBe(4);
+	const elapsedMs = performance.now() - started;
+	console.info(
+		JSON.stringify({ budget: 'runAnalysis', rtt_ms: 98, round_trips: 4, elapsed_ms: elapsedMs })
+	);
+	expect(elapsedMs).toBeLessThan(1000);
 	expect(result).toMatchObject({ action: 'runAnalysis', ok: true, result: { status: 'queued' } });
 
 	const { jobId } = (result as { result: { jobId: string } }).result;
@@ -96,6 +112,54 @@ it('queues a Run in four round trips: begin, set role and user, one statement, c
 	expect(audits).toEqual([
 		{ actorId: manager, actorKind: 'user', after: { operation: 'loudness', status: 'queued' } }
 	]);
+});
+
+it('commits under 1 s with healthy plans, six 98 ms exchanges and an 80 ms billing lookup', async () => {
+	vi.spyOn(plansEnv, 'plansConfig').mockReturnValue({
+		enabled: true,
+		billingUrl: 'https://billing.example',
+		adminToken: 'ci-plan-probe',
+		exemptOrgIds: []
+	});
+	const billing = vi.fn(async (url: string) => {
+		expect(url).toBe(`https://billing.example/v1/admin/labels/${orgId}/plan`);
+		await new Promise((resolve) => setTimeout(resolve, 80));
+		return Response.json({
+			label_plan: {
+				plan: 'label',
+				status: 'active',
+				current_period_end: null,
+				cancel_at_period_end: false,
+				limits: { tracks: 10000, seats: 100, analysisJobsPerMonth: 10000 }
+			}
+		});
+	});
+	vi.stubGlobal('fetch', billing);
+	let result: unknown;
+	const started = performance.now();
+	const trips = await proxy.count(async () => (result = await actions.runAnalysis(eventFor())), 98);
+	const elapsedMs = performance.now() - started;
+	expect(trips).toBe(6);
+	expect(billing).toHaveBeenCalledTimes(1);
+	expect(result).toMatchObject({ action: 'runAnalysis', ok: true, result: { status: 'queued' } });
+	console.info(
+		JSON.stringify({
+			budget: 'runAnalysis-healthy-plans',
+			rtt_ms: 98,
+			billing_ms: 80,
+			round_trips: trips,
+			elapsed_ms: elapsedMs
+		})
+	);
+	expect(elapsedMs).toBeLessThan(1000);
+	const { jobId } = (result as { result: { jobId: string } }).result;
+	const [job] = await db.select().from(audiokitJobs).where(eq(audiokitJobs.id, jobId));
+	expect(job).toMatchObject({ orgId, recordingId, status: 'queued', requestedBy: manager });
+	const [audit] = await db
+		.select()
+		.from(auditLog)
+		.where(and(eq(auditLog.entity, 'audiokit_job'), eq(auditLog.entityId, jobId)));
+	expect(audit.actorId).toBe(manager);
 });
 
 it('adds only the plan check when plans are on: the lock and the count', async () => {

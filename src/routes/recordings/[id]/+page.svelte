@@ -1,10 +1,10 @@
 <script lang="ts">
+	import RecordingFields from '#lib/components/RecordingFields.svelte';
 	import Credits from '#lib/components/Credits.svelte';
 	import Masters from '#lib/components/Masters.svelte';
 	import Ownership from '#lib/components/Ownership.svelte';
 	import RecordingAnalysis from '#lib/components/RecordingAnalysis.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
-	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as NativeSelect from '#lib/components/ui/native-select/index.js';
 	import type { PageProps } from './$types';
@@ -32,16 +32,8 @@
 		const s = Math.round(ms / 1000);
 		return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 	}
-	const v = (field: string, fallback: string | null) =>
-		failed('save') ? (values[field] ?? '') : (fallback ?? '');
-
 	/** A save error that names a field, shown under that field; the rest go under the form. */
 	const FIELDS = ['title', 'versionTitle', 'isrc', 'duration', 'genre', 'subgenre'];
-	const fieldError = (field: string) => (failed('save') ? errors[field] : undefined);
-	const invalid = (field: string) =>
-		fieldError(field)
-			? { 'aria-invalid': true as const, 'aria-describedby': `${field}-error` }
-			: {};
 	const saveFormErrors = $derived(
 		failed('save')
 			? Object.entries(errors)
@@ -62,10 +54,6 @@
 	];
 	const mains = $derived(data.credits.filter((c) => c.role === 'main'));
 </script>
-
-{#snippet error(field: string)}
-	{#if fieldError(field)}<Field.Error id="{field}-error">{fieldError(field)}</Field.Error>{/if}
-{/snippet}
 
 <div class="container">
 	<section class="stack">
@@ -107,73 +95,15 @@
 				<form method="POST" action="?/save" class="stack" aria-labelledby="details-h">
 					<h2 id="details-h" class="h2">Details</h2>
 					<input type="hidden" name="updatedAt" value={rec.updatedAt.toISOString()} />
-					<Field.Group class="gap-2.5">
-						<Field.Field orientation="responsive">
-							<Field.Label for="title">Title</Field.Label>
-							<Input
-								id="title"
-								name="title"
-								value={v('title', rec.title)}
-								required
-								{...invalid('title')}
-							/>
-							{@render error('title')}
-						</Field.Field>
-						<Field.Field orientation="responsive">
-							<Field.Label for="versionTitle">Version</Field.Label>
-							<Input
-								id="versionTitle"
-								name="versionTitle"
-								value={v('versionTitle', rec.versionTitle)}
-								placeholder="e.g. Extended Mix"
-								{...invalid('versionTitle')}
-							/>
-							{@render error('versionTitle')}
-						</Field.Field>
-						<Field.Field orientation="responsive">
-							<Field.Label for="isrc">ISRC</Field.Label>
-							<Input
-								id="isrc"
-								name="isrc"
-								class="font-mono"
-								value={v('isrc', rec.isrc)}
-								required
-								{...invalid('isrc')}
-							/>
-							{@render error('isrc')}
-						</Field.Field>
-						<Field.Field orientation="responsive">
-							<Field.Label for="duration">Length</Field.Label>
-							<Input
-								id="duration"
-								name="duration"
-								class="font-mono"
-								value={v('duration', fmt(rec.durationMs))}
-								placeholder="mm:ss"
-								{...invalid('duration')}
-							/>
-							{@render error('duration')}
-						</Field.Field>
-						<Field.Field orientation="responsive">
-							<Field.Label for="genre">Genre</Field.Label>
-							<Input id="genre" name="genre" value={v('genre', rec.genre)} {...invalid('genre')} />
-							{@render error('genre')}
-						</Field.Field>
-						<Field.Field orientation="responsive">
-							<Field.Label for="subgenre">Subgenre</Field.Label>
-							<Input
-								id="subgenre"
-								name="subgenre"
-								value={v('subgenre', rec.subgenre)}
-								{...invalid('subgenre')}
-							/>
-							{@render error('subgenre')}
-						</Field.Field>
-						<!-- Lines the button up with the controls: the 140 px label column plus the 20 px gap. -->
-						<div class="sm:pl-[160px]">
-							<Button type="submit" variant="primary">Save</Button>
-						</div>
-					</Field.Group>
+					<RecordingFields
+						recording={rec}
+						values={failed('save') ? values : {}}
+						errors={failed('save') ? errors : {}}
+					/>
+					<!-- Lines the button up with the controls: the 140 px label column plus the 20 px gap. -->
+					<div class="sm:pl-[160px]">
+						<Button type="submit" variant="primary">Save</Button>
+					</div>
 					{#if saveFormErrors.length}
 						<div class="alert error" role="alert">{saveFormErrors.join('\n')}</div>
 					{:else if saved}

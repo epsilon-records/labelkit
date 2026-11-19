@@ -1,4 +1,6 @@
-# ERMS — Epsilon Records Management System
+# LabelKit
+
+ERMS is Epsilon Records’ own LabelKit instance.
 
 The label's system of record: catalog, rights, releases, distribution and royalties.
 Audio processing is delegated to [AudioKit](https://github.com/epsilon-records/audiokit) through an `AudioProvider` interface that speaks AudioKit's OpenAPI contract. `contract.drift.test.ts` checks it against that contract: set `AUDIOKIT_OPENAPI` to a path or URL of AudioKit's `openapi.yaml` before `pnpm test` (CI fetches it).
@@ -353,8 +355,11 @@ None go in the repo.
 
 Knowledge labelkit 0034/0035: a label's auth email carries the label's own name, and its own sender
 domain if it has one. Behind the per-org PostHog flag **`labelkit-branded-auth-email`** (default
-off, `features.ts`). With the flag off for an org, with PostHog's keys unset, or when anything in
-this path fails, the hook runs exactly the rules above. Code: `src/lib/server/auth-email/branding.ts`.
+off, `features.ts`). With the flag off for an org, with PostHog's keys unset, or when the org lookup
+or the flag check fails or runs out of time, the hook runs exactly the rules above. Once an email is
+branded it does not go back to those rules: a label key that does not open sends from
+`auth.labelkit.co` under the label's name (see **Sender** below), and a missing
+`RESEND_KEY_LABELKIT` fails closed. Code: `src/lib/server/auth-email/branding.ts`.
 
 - **Which org.** An invite: the inviting org (`invited_org_id`, trusted for invites only, as above).
   Every other email: the org whose **active** custom domain (`orgs.custom_domain`,
@@ -409,6 +414,8 @@ then runs the request as that agent with `scopedTo`, so `/v1` goes through the s
   and runs nothing.
 - **MCP server:** `packages/mcp` (npm name `labelkit-co`, not published) serves the six reads to MCP
   clients over stdio. See its README.
+- **CLI:** the [LabelKit CLI](packages/cli/README.md) checks read access, lists and gets releases and
+  recordings, and searches the catalogue.
 - **Spec:** `docs/openapi.yaml`. `openapi.test.ts` checks that it lists exactly the routes under
   `src/routes/v1`, and `v1.db.test.ts` checks that what each route sends matches its response
   schema, and that a key from another label reads none of it.
