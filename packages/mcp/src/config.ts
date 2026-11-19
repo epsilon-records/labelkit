@@ -1,4 +1,4 @@
-import { normalizeBaseUrl } from './url.js';
+import { LOCAL_HOSTS, normalizeBaseUrl } from './url.js';
 
 /** Settings from the environment, checked once at startup. */
 
@@ -14,8 +14,6 @@ export class ConfigError extends Error {}
 
 /** `lk_<8-character prefix>_<43-character secret>`, as LabelKit issues them (src/lib/server/api-keys.ts). */
 const KEY_RE = /^lk_[a-z0-9]{8}_[A-Za-z0-9_-]{43}$/;
-
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export function loadConfig(env: Record<string, string | undefined>): Config {
 	const apiKey = env[ENV_API_KEY]?.trim();

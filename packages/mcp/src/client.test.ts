@@ -58,6 +58,23 @@ describe('LabelKitClient', () => {
 		await expect(client(text).get('/v1/releases')).rejects.toBeInstanceOf(TransportError);
 	});
 
+	it('treats a body that fails after the headers as a transport failure', async () => {
+		const broken = async () =>
+			new Response(
+				new ReadableStream({
+					start(controller) {
+						controller.error(new Error('socket hang up'));
+					}
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			);
+		const e = await client(broken as never)
+			.get('/v1/releases')
+			.catch((x: Error) => x);
+		expect(e).toBeInstanceOf(TransportError);
+		expect((e as Error).message).toContain('Could not reach the LabelKit API');
+	});
+
 	it('never lets the key out in an error', async () => {
 		const leaky = async () => {
 			throw new Error(`boom ${KEY}`);
