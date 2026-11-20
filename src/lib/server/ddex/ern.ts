@@ -117,6 +117,25 @@ const duration = (ms: number) =>
 	`PT${Math.floor(ms / 1000)}${ms % 1000 ? `.${String(ms % 1000).padStart(3, '0')}` : ''}S`;
 
 /** Pure preflight/generator. Context can never override durable catalogue facts. */
+/** Preserve literal ampersands before xmlbuilder2 serializes text and attributes. */
+export function serializeErnXml(doc: ReturnType<typeof create>): string {
+	const literal = (value: string) => value.replaceAll('&', '&amp;');
+	doc.root().each(
+		({ node }) => {
+			// The writer treats entity-shaped strings as already escaped, even in plain data.
+			if (node.nodeType === 3 && node.nodeValue !== null) node.nodeValue = literal(node.nodeValue);
+			if ('attributes' in node) {
+				for (const attribute of Array.from(node.attributes as ArrayLike<{ value: string }>)) {
+					attribute.value = literal(attribute.value);
+				}
+			}
+		},
+		true,
+		true
+	);
+	return doc.end({ prettyPrint: true, wellFormed: true });
+}
+
 export function generateErn(
 	snapshot: ErnSnapshot,
 	input: unknown,
@@ -428,7 +447,7 @@ export function generateErn(
 				item.ele('ReleaseResourceReference').txt(anchor('A', track.recordingId));
 			}
 		}
-		return { findings: [], xml: doc.end({ prettyPrint: true }) };
+		return { findings: [], xml: serializeErnXml(doc) };
 	} catch {
 		return {
 			findings: [
