@@ -3,7 +3,13 @@ import { join } from 'node:path';
 import { create } from 'xmlbuilder2';
 import { expect, it } from 'vitest';
 import { completeErnFixture, fixtureId, testContext } from './ern.fixture';
-import { ERN_AVS_VERSION, ERN_NAMESPACE, generateErn, type ErnSnapshot } from './ern';
+import {
+	ERN_AVS_VERSION,
+	ERN_NAMESPACE,
+	generateErn,
+	serializeErnXml,
+	type ErnSnapshot
+} from './ern';
 
 let output = 0;
 function run(snapshot = completeErnFixture(), context: unknown = testContext) {
@@ -193,4 +199,43 @@ it('M15: a complete metadata fixture has no delivery file or network/storage loc
 	expect(xml).not.toContain('<File>');
 	expect(xml).not.toContain('TechnicalDetails');
 	expect(xml).not.toContain('https://');
+});
+
+it('keeps entity-shaped text literal in schema-validated export fixtures', () => {
+	const snapshot = completeErnFixture();
+	const title = 'Title &copy; &amp; < > " \'';
+	const artist = 'Artist &copy; &amp; < > " \'';
+	snapshot.release.title = title;
+	snapshot.recordings[0].title = title;
+	snapshot.parties[0].displayName = artist;
+	snapshot.release.displayArtistName = artist;
+	snapshot.recordings[0].displayArtistName = artist;
+	const result = run(snapshot);
+	expect(result.findings).toEqual([]);
+	expect(text(result.xml!, 'TitleText')).toBe(title);
+	expect(
+		create(result.xml!)
+			.filter((n) => n.node.nodeName === 'FullName', false, true)
+			.map((n) => n.node.textContent)
+	).toContain(artist);
+	expect(text(result.xml!, 'DisplayArtistName')).toBe(artist);
+	expect(result.xml).toContain('&amp;copy; &amp;amp; &lt; &gt;');
+});
+
+it('uses the same escaping for copyright text and attributes without adding new export fields', () => {
+	const value = 'Copyright &copy; &amp; < > " \'';
+	const doc = create();
+	doc.ele('CLine').att('Example', value).ele('CLineText').txt(value);
+	const xml = serializeErnXml(doc);
+	expect(text(xml, 'CLineText')).toBe(value);
+	expect(xml).toContain('Example="Copyright &amp;copy; &amp;amp; &lt; &gt; &quot;');
+	const root = create(xml).root().node;
+	expect(
+		'getAttribute' in root && typeof root.getAttribute === 'function'
+			? root.getAttribute('Example')
+			: undefined
+	).toBe(value);
+	const numeric = create();
+	numeric.ele('Text').txt('&#65;');
+	expect(serializeErnXml(numeric)).toContain('&amp;#65;');
 });

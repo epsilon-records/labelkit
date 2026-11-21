@@ -1,6 +1,6 @@
 # LabelKit CLI
 
-Read releases and recordings, or search your label’s catalogue. Create a LabelKit API key with the `catalog:read` scope.
+Read and search your catalogue, or create releases, recordings, artists and track placements. Use an API key with `catalog:read` for reads and `catalog:write` for creates.
 
 ## Install from source
 
@@ -33,3 +33,18 @@ Flags `--url` and `--api-key` take precedence over `LABELKIT_URL` and `LABELKIT_
 | `labelkit search QUERY`                             | Searches for matching releases, recordings and artists. Quote queries containing spaces. |
 
 Pass `--json` to any command for pretty JSON on stdout. List commands accept limits from 1 to 200. When `next_cursor` is present, pass it as `--after` for the next page. Errors go to stderr. Exit status is 0 for success, 1 for configuration, API or transport errors, and 2 for invalid arguments.
+
+## Create commands
+
+Supply a JSON file matching the request body in the [public API contract](../../docs/openapi.yaml).
+
+| Command                                     | Required JSON fields                                                                                        |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `labelkit release create --file FILE`       | `title`, `upc` and `label_id`                                                                               |
+| `labelkit recording create --file FILE`     | `title` and `isrc`                                                                                          |
+| `labelkit artist create --file FILE`        | `display_name`                                                                                              |
+| `labelkit track add RELEASE_ID --file FILE` | `mode`, `disc` and `position`, plus `recording_id` for `existing` mode or `title` and `isrc` for `new` mode |
+
+For safe retries, pass a unique `--idempotency-key KEY` on the first attempt and reuse it with the
+same command, API key and JSON body if you need to retry. The CLI sends each create request once.
+Add `--json` to get the API response on stdout as pretty JSON.
