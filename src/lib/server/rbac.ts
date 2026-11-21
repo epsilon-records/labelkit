@@ -28,7 +28,7 @@ const ROLE_SCOPES: Record<Role, readonly Scope[]> = {
 	rights_admin: ['catalog:read', 'rights:read', 'rights:write', 'consent:write', 'agreements:read'],
 	viewer: ['catalog:read'],
 	// Agents can never approve or write consent; tokens may narrow this further.
-	agent: ['catalog:read', 'processing:request']
+	agent: ['catalog:read', 'catalog:write', 'processing:request']
 };
 
 export function scopesFor(role: Role): readonly Scope[] {

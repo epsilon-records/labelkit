@@ -1,0 +1,29 @@
+name: MCP smoke test
+
+# Manual only (EPSILON-138). Builds packages/mcp, starts the built CLI over stdio against
+# production (https://api.labelkit.co) and calls every read tool once. It only reads. The key is a
+# catalog:read-only key on the Epsilon org, kept in the LABELKIT_SMOKE_API_KEY secret. The script
+# prints only tool names, counts and pass/fail: never the key or a response body.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter labelkit-co build
+      - name: Smoke test the built CLI over stdio
+        env:
+          LABELKIT_API_KEY: ${{ secrets.LABELKIT_SMOKE_API_KEY }}
+        run: node packages/mcp/scripts/smoke.mjs

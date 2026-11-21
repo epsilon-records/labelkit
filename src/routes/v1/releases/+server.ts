@@ -1,3 +1,4 @@
+import { createEndpoint } from '#lib/server/api/create.js';
 import { listReleasesPage, pageParams, v1 } from '#lib/server/api/v1.js';
 import type { RequestHandler } from './$types';
 
@@ -6,3 +7,5 @@ export const GET: RequestHandler = v1('catalog:read', ({ url }, { orgId, db }) =
 	const params = pageParams(url);
 	return db((tx) => listReleasesPage(tx, orgId, params));
 });
+
+export const POST: RequestHandler = createEndpoint('release');
