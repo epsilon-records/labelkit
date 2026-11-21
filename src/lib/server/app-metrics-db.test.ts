@@ -20,6 +20,13 @@ it('real Supabase: atomic cap across connections, rollback, finite columns, rete
 	const [{ today }] =
 		await client`select (clock_timestamp() at time zone 'UTC')::date::text as today`;
 	await client`insert into app_metrics.app_performance_daily values (${today},0,0,0,1997),(${today},1,1,1,1997)`;
+	// This part proves the cap is atomic, not that record() meets its 100 ms / 250 ms production
+	// budget (the next test covers that). Every call takes the same row lock (the day's total row)
+	// and holds it until its own COMMIT, so a call can wait for a commit's WAL flush. On a busy CI
+	// runner that flush passes 100 ms and the waiter is shed with 55P03 instead of answering
+	// (EPSILON-253). Widen the function's own limits on this test's private database only: the
+	// function-level SET wins over any session or SET LOCAL value, so ALTER is the one lever.
+	await client`alter function app_metrics.record(smallint,smallint,smallint) set lock_timeout = '30s' set statement_timeout = '30s'`;
 	const outcomes = await Promise.all(
 		Array.from({ length: 20 }, () =>
 			client.begin(async (tx) => {
@@ -73,4 +80,43 @@ it('real Supabase: atomic cap across connections, rollback, finite columns, rete
 	).toHaveLength(0);
 	await client`delete from app_metrics.app_performance_daily`;
 	expect(await client`select * from app_metrics.app_performance_daily`).toHaveLength(0);
+});
+
+it('real Supabase: record() sheds with 55P03 after 100 ms when the total row is locked, and changes nothing', async () => {
+	const { client } = await createTestDb();
+	// The budget is part of the function's definition, so a migration that drops it fails here.
+	const [{ proconfig }] =
+		await client`select proconfig from pg_proc where oid = 'app_metrics.record(smallint,smallint,smallint)'::regprocedure`;
+	expect(proconfig).toEqual(
+		expect.arrayContaining(['lock_timeout=100ms', 'statement_timeout=250ms'])
+	);
+	const [{ today }] =
+		await client`select (clock_timestamp() at time zone 'UTC')::date::text as today`;
+	await client`insert into app_metrics.app_performance_daily values (${today},0,0,0,5),(${today},1,1,1,5)`;
+
+	// Hold the total row's lock in another connection until we release it: no timing involved.
+	let release!: () => void;
+	const released = new Promise<void>((resolve) => (release = resolve));
+	let locked!: () => void;
+	const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+	const holder = client.begin(async (tx) => {
+		await tx`select 1 from app_metrics.app_performance_daily where route_code = 0 and metric_code = 0 for update`;
+		locked();
+		await released;
+	});
+	try {
+		await Promise.race([lockTaken, holder]);
+		await expect(
+			client.begin(async (tx) => {
+				await tx`set local role labelkit_metrics_ingest`;
+				await tx`select app_metrics.record(1::smallint,1::smallint,1::smallint)`;
+			})
+		).rejects.toMatchObject({ code: '55P03' });
+	} finally {
+		release();
+		await holder;
+	}
+	const rows =
+		await client`select route_code,count::int as n from app_metrics.app_performance_daily order by route_code`;
+	expect(rows.map((r) => r.n)).toEqual([5, 5]);
 });

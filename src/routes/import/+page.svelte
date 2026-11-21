@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Input } from '#lib/components/ui/input/index.js';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -27,7 +28,14 @@
 		<form method="POST" action="?/preview" enctype="multipart/form-data" class="stack">
 			<div class="inline-form" style="max-width: 640px">
 				<label for="file" class="sr-only">CSV file</label>
-				<input id="file" type="file" name="file" accept=".csv,text/csv" required />
+				<Input
+					id="file"
+					type="file"
+					name="file"
+					accept=".csv,text/csv"
+					required
+					class="w-auto flex-[1_1_220px]"
+				/>
 				<Button type="submit" variant="primary">Dry run</Button>
 			</div>
 			<p class="muted" style="margin: 0">

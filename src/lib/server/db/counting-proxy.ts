@@ -7,6 +7,8 @@ import net from 'node:net';
  */
 export async function countingProxy(host: string, port: number) {
 	let trips = 0;
+	let latencyMs = 0;
+	const pending = new Set<ReturnType<typeof setTimeout>>();
 	const sockets = new Set<net.Socket>();
 	const server = net.createServer((client) => {
 		const upstream = net.connect(port, host);
@@ -14,7 +16,15 @@ export async function countingProxy(host: string, port: number) {
 		let buf = Buffer.alloc(0);
 		let started = false;
 		client.on('data', (chunk: Buffer) => {
-			upstream.write(chunk);
+			// A one-way delay models one measured RTT per sequential exchange. Protocol frames
+			// in the same write still travel together; server-to-client bytes stay immediate.
+			if (latencyMs) {
+				const timer = setTimeout(() => {
+					pending.delete(timer);
+					upstream.write(chunk);
+				}, latencyMs);
+				pending.add(timer);
+			} else upstream.write(chunk);
 			buf = Buffer.concat([buf, chunk]);
 			for (;;) {
 				if (!started) {
@@ -43,12 +53,18 @@ export async function countingProxy(host: string, port: number) {
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	return {
 		port: (server.address() as net.AddressInfo).port,
-		async count(fn: () => Promise<unknown>) {
+		async count(fn: () => Promise<unknown>, delayMs = 0) {
 			const before = trips;
-			await fn();
-			return trips - before;
+			latencyMs = delayMs;
+			try {
+				await fn();
+				return trips - before;
+			} finally {
+				latencyMs = 0;
+			}
 		},
 		close() {
+			for (const timer of pending) clearTimeout(timer);
 			for (const s of sockets) s.destroy();
 			server.close();
 		}

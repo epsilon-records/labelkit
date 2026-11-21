@@ -11,7 +11,12 @@ export const FEATURES = {
 	/** A&R pipeline: demo intake and signing decisions (EPSILON-140). */
 	ar: { flag: 'labelkit-ar', default: false },
 	/** Recoupment tracking (M6). */
-	recoupment: { flag: 'labelkit-recoupment', default: false }
+	recoupment: { flag: 'labelkit-recoupment', default: false },
+	/**
+	 * Auth email branded per label: the label's name and sender (EPSILON-146). Evaluated by the
+	 * Send Email hook for the org the email is for; off keeps the EPSILON-147 sender rules.
+	 */
+	brandedAuthEmail: { flag: 'labelkit-branded-auth-email', default: false }
 } as const satisfies Record<string, { flag: string; default: boolean }>;
 
 export type Feature = keyof typeof FEATURES;
@@ -36,6 +41,21 @@ export async function featuresFor(source: FlagSource | null, orgId: string): Pro
 		})
 	);
 	return Object.fromEntries(entries) as Features;
+}
+
+/** One feature for one org. Errors and missing answers fall back to the default. */
+export async function featureFor(
+	source: FlagSource | null,
+	orgId: string,
+	feature: Feature
+): Promise<boolean> {
+	const { flag, default: fallback } = FEATURES[feature];
+	if (!source) return fallback;
+	try {
+		return (await source.isEnabled(flag, orgId)) ?? fallback;
+	} catch {
+		return fallback;
+	}
 }
 
 /** Throws 404 unless the request's org has the feature, so gated routes look like they don't exist. */

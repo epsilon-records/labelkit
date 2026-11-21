@@ -2,11 +2,18 @@
 	import type { Snippet } from 'svelte';
 
 	// Shared frame for /privacy and /terms: public pages, readable signed in or out.
-	let { title, effective, children }: { title: string; effective: string; children: Snippet } =
-		$props();
+	let {
+		title,
+		description,
+		effective,
+		children
+	}: { title: string; description: string; effective: string; children: Snippet } = $props();
 </script>
 
-<svelte:head><title>{title} · LabelKit</title></svelte:head>
+<svelte:head>
+	<title>{title} · LabelKit</title>
+	<meta name="description" content={description} />
+</svelte:head>
 
 <div class="container legal">
 	<p><a href="/" class="linkish">LabelKit</a></p>
@@ -28,5 +35,13 @@
 	}
 	.legal :global(li) {
 		margin-bottom: 0.4em;
+	}
+	@media (max-width: 760px) {
+		.legal > p:first-child a {
+			display: inline-flex;
+			align-items: center;
+			min-width: 44px;
+			min-height: 44px;
+		}
 	}
 </style>

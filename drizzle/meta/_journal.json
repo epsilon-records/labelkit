@@ -232,6 +232,48 @@
       "when": 1794502555907,
       "tag": "0032_org_custom_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794745497304,
+      "tag": "0033_auth_email_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794897456413,
+      "tag": "0034_api_catalog_create",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794897456414,
+      "tag": "0035_validate_api_write_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794897884509,
+      "tag": "0036_api_receipt_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794897884510,
+      "tag": "0037_validate_api_receipt_org",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794984000000,
+      "tag": "0038_api_keys_closed_org",
+      "breakpoints": true
     }
   ]
 }

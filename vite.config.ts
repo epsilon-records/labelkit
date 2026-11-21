@@ -11,7 +11,8 @@ const projects: TestProjectConfiguration[] = [
 		extends: true,
 		test: {
 			name: 'unit',
-			include: ['src/**/*.test.ts'],
+			// packages/mcp (EPSILON-138) is its own package; its unit tests run here too, so `pnpm test` covers it.
+			include: ['src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
 			environment: 'node',
 			// Builds the migrated template on the local Supabase stack that database tests copy from.
 			globalSetup: ['src/lib/server/test-db.global.ts']
@@ -44,6 +45,18 @@ const projects: TestProjectConfiguration[] = [
 ];
 
 export default defineConfig(async () => ({
+	// Compile the cold hook graph into server chunks: avoid hundreds of individual package
+	// resolutions/reads per new function. Keep SDK options and the lazy DB pool unchanged.
+	ssr: {
+		noExternal: [
+			/^@sentry\//,
+			/^@opentelemetry\//,
+			/^@supabase\//,
+			'drizzle-orm',
+			'postgres',
+			'zod'
+		]
+	},
 	// Sentry environment and release for both hooks, fixed at build time from Netlify's
 	// build variables so browser and server events are tagged alike and deploy previews
 	// (CONTEXT=deploy-preview) don't report as production.
