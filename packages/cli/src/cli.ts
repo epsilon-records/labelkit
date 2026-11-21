@@ -11,7 +11,13 @@ const USAGE = [
 	'  releases get ID                       Show one release',
 	'  recordings list [--limit N] [--after ID] List recordings',
 	'  recordings get ID                     Show one recording',
-	'  search QUERY                          Search the catalogue'
+	'  search QUERY                          Search the catalogue',
+	'  release create --file FILE            Create a release',
+	'  recording create --file FILE          Create a recording',
+	'  artist create --file FILE              Create an artist',
+	'  track add RELEASE_ID --file FILE       Add a track to a release',
+	'',
+	'Create commands also accept --idempotency-key KEY.'
 ].join('\n');
 
 type Io = {
@@ -21,7 +27,9 @@ type Io = {
 	fetch?: typeof fetch;
 };
 
-type Request = { path: string; query?: Query; auth?: true };
+type Request =
+	| { path: string; query?: Query; auth?: true }
+	| { path: string; bodyFile: string; idempotencyKey?: string };
 
 class UsageError extends Error {}
 
@@ -65,7 +73,9 @@ function args(argv: string[]) {
 				json: { type: 'boolean' },
 				help: { type: 'boolean', short: 'h' },
 				limit: { type: 'string' },
-				after: { type: 'string' }
+				after: { type: 'string' },
+				file: { type: 'string' },
+				'idempotency-key': { type: 'string' }
 			}
 		});
 	} catch {
@@ -73,13 +83,32 @@ function args(argv: string[]) {
 	}
 }
 
-function requestFor(
-	positionals: string[],
-	limit: string | undefined,
-	after: string | undefined
-): Request {
+function requestFor(positionals: string[], values: ReturnType<typeof args>['values']): Request {
+	const { limit, after, file, 'idempotency-key': idempotencyKey } = values;
 	const [command, action, id, ...extra] = positionals;
 	const paginated = limit !== undefined || after !== undefined;
+	if (!paginated) {
+		const path =
+			action === 'create' &&
+			positionals.length === 2 &&
+			(command === 'release' || command === 'recording' || command === 'artist')
+				? '/v1/' + command + 's'
+				: command === 'track' && action === 'add' && id && extra.length === 0
+					? '/v1/releases/' + checkedId(id) + '/tracks'
+					: undefined;
+		if (path) {
+			if (!file?.trim()) throw new UsageError('Supply --file with a JSON request body.');
+			if (idempotencyKey !== undefined && !/^[\x21-\x7e]{1,200}$/.test(idempotencyKey)) {
+				throw new UsageError(
+					'--idempotency-key must have 1 to 200 printable ASCII characters without spaces.'
+				);
+			}
+			return { path, bodyFile: file, idempotencyKey };
+		}
+	}
+	if (file !== undefined || idempotencyKey !== undefined) {
+		throw new UsageError('--file and --idempotency-key are only for create commands.');
+	}
 	if (command === 'auth' && positionals.length === 1 && !paginated) {
 		return { path: '/v1/releases', query: { limit: 1 }, auth: true };
 	}
@@ -99,11 +128,25 @@ function requestFor(
 			return { path, query: { limit: size, after } };
 		}
 		if (action === 'get' && id && extra.length === 0 && !paginated) {
-			if (!UUID.test(id)) throw new UsageError('ID must be a UUID.');
-			return { path: path + '/' + encodeURIComponent(id) };
+			return { path: path + '/' + checkedId(id) };
 		}
 	}
 	throw new UsageError('Invalid command or arguments. Run labelkit --help for usage.');
+}
+
+function checkedId(id: string): string {
+	if (!UUID.test(id)) throw new UsageError('ID must be a UUID.');
+	return id;
+}
+
+async function readPayload(path: string): Promise<object> {
+	try {
+		const value: unknown = JSON.parse(await readFile(path, 'utf8'));
+		if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+		return value;
+	} catch {
+		throw new UsageError('--file must contain a JSON object.');
+	}
 }
 
 async function fileConfig(path: string | undefined): Promise<{ apiKey?: string; url?: string }> {
@@ -129,7 +172,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
 			io.out(USAGE);
 			return 0;
 		}
-		const request = requestFor(positionals, values.limit, values.after);
+		const request = requestFor(positionals, values);
 		if (values.url !== undefined && !values.url.trim()) {
 			throw new UsageError('--url must not be empty.');
 		}
@@ -148,14 +191,22 @@ export async function run(argv: string[], io: Io): Promise<number> {
 		});
 
 		const client = new LabelKitClient({ ...config, fetch: io.fetch });
-		const response = await client.get(request.path, request.query);
-		if (request.auth && !isReleasePage(response)) {
+		const auth = 'auth' in request && request.auth;
+		const response =
+			'bodyFile' in request
+				? await client.post(
+						request.path,
+						await readPayload(request.bodyFile),
+						request.idempotencyKey
+					)
+				: await client.get(request.path, request.query);
+		if (auth && !isReleasePage(response)) {
 			throw new TransportError('The LabelKit API did not return a release page.');
 		}
-		const result = request.auth ? { authenticated: true } : response;
+		const result = auth ? { authenticated: true } : response;
 		const output = values.json
 			? JSON.stringify(result, null, 2)
-			: request.auth
+			: auth
 				? 'Authenticated. Catalogue read access confirmed.'
 				: inspect(result, {
 						depth: null,

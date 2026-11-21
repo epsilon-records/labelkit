@@ -415,7 +415,8 @@ then runs the request as that agent with `scopedTo`, so `/v1` goes through the s
 - **MCP server:** `packages/mcp` (npm name `labelkit-co`, not published) serves the six reads to MCP
   clients over stdio. See its README.
 - **CLI:** the [LabelKit CLI](packages/cli/README.md) checks read access, lists and gets releases and
-  recordings, and searches the catalogue.
+  recordings, and searches the catalogue. A write-enabled key can also create releases, recordings,
+  artists and track placements.
 - **Spec:** `docs/openapi.yaml`. `openapi.test.ts` checks that it lists exactly the routes under
   `src/routes/v1`, and `v1.db.test.ts` checks that what each route sends matches its response
   schema, and that a key from another label reads none of it.

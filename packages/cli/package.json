@@ -3,7 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
-	"description": "Read a LabelKit catalogue from the command line",
+	"description": "Read and add catalogue entries from the command line",
 	"bin": {
 		"labelkit": "dist/cli/src/main.js"
 	},
