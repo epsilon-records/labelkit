@@ -6,7 +6,8 @@
 				"http://127.0.0.1:4173/login",
 				"http://127.0.0.1:4173/signup",
 				"http://127.0.0.1:4173/terms",
-				"http://127.0.0.1:4173/privacy"
+				"http://127.0.0.1:4173/privacy",
+				"http://127.0.0.1:4173/docs"
 			],
 			"numberOfRuns": 3,
 			"settings": {

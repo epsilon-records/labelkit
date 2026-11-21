@@ -4,6 +4,7 @@
  * `/signup/label` sends a visitor with no session on to `/signup` itself.
  */
 export const PUBLIC_PAGES: readonly string[] = [
+	'/docs',
 	'/login',
 	'/signup',
 	'/signup/label',
