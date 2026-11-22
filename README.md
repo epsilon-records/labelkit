@@ -165,9 +165,9 @@ fallback is closed to it for good, so a label whose client is revoked fails clos
 ### Uptime prober
 
 `netlify/functions/uptime-probe.mjs` (shared decision 0010) covers the endpoints Sentry's single
-uptime monitor does not: `billing.audiokit.ai/ready`, `console.audiokit.ai`, `audiokit.ai` and
+uptime monitor does not: `billing.audiokit.ai/ready`, `audiokit.ai`,
 `labelkit.co/login` and `erms.epsilonrecords.com/login`. Every 5 minutes it GETs each one with a 10 s timeout, following
-redirects (`console.audiokit.ai/` answers 303 to `/login`; the final answer is what counts). A
+redirects (the final answer is what counts). A
 failed probe is retried once after 2 s, so a one-off network error inside the function does not
 alert. If the retry also fails, a non-2xx final answer, a timeout or a network error sends one
 Sentry error event for that endpoint to

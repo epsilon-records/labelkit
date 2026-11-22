@@ -64,10 +64,9 @@ describe('uptime prober (shared decision 0010)', () => {
 	});
 	afterEach(() => vi.restoreAllMocks());
 
-	it('probes exactly the five endpoints the decision names, every 5 minutes, 10 s timeout', () => {
+	it('probes exactly the four endpoints the decision names, every 5 minutes, 10 s timeout', () => {
 		expect(ENDPOINTS).toEqual([
 			'https://billing.audiokit.ai/ready',
-			'https://console.audiokit.ai',
 			'https://audiokit.ai',
 			'https://labelkit.co/login',
 			'https://erms.epsilonrecords.com/login'
@@ -129,12 +128,12 @@ describe('uptime prober (shared decision 0010)', () => {
 	it('sends one production error event per failing endpoint, and none for the healthy ones', async () => {
 		const f = fakeFetch({
 			'https://billing.audiokit.ai/ready': 503,
-			'https://console.audiokit.ai': 'timeout'
+			'https://labelkit.co/login': 'timeout'
 		});
 		const out = await run({ fetchImpl: f.impl, env, ...fast });
 		expect(out.reported).toEqual([
 			'https://billing.audiokit.ai/ready',
-			'https://console.audiokit.ai'
+			'https://labelkit.co/login'
 		]);
 		expect(f.envelopes).toHaveLength(2);
 
@@ -156,8 +155,8 @@ describe('uptime prober (shared decision 0010)', () => {
 		});
 		expect(console_).toMatchObject({
 			environment: 'production',
-			fingerprint: ['uptime-probe', 'console.audiokit.ai'],
-			tags: { probe_endpoint: 'console.audiokit.ai', probe_reason: 'timeout' }
+			fingerprint: ['uptime-probe', 'labelkit.co/login'],
+			tags: { probe_endpoint: 'labelkit.co/login', probe_reason: 'timeout' }
 		});
 		expect(console_.tags).not.toHaveProperty('probe_status');
 	});
@@ -279,7 +278,7 @@ describe('uptime prober (shared decision 0010)', () => {
 		expect(f.events().map((e) => [e.tags.probe_endpoint, e.tags.probe_status])).toEqual([
 			['audiokit.ai', '503']
 		]);
-		expect(f.probes.filter((p) => p.url === 'https://console.audiokit.ai')).toHaveLength(1);
+		expect(f.probes.filter((p) => p.url === 'https://labelkit.co/login')).toHaveLength(1);
 	});
 
 	it('waits before the retry, and fits two timeouts and the pause inside 30 s', async () => {
@@ -298,7 +297,7 @@ describe('uptime prober (shared decision 0010)', () => {
 	it('sends the events for several failing endpoints at the same time', async () => {
 		let inFlight = 0;
 		let peak = 0;
-		const f = fakeFetch({ 'https://audiokit.ai': 503, 'https://console.audiokit.ai': 503 });
+		const f = fakeFetch({ 'https://audiokit.ai': 503, 'https://labelkit.co/login': 503 });
 		const slowSentry = (async (input: RequestInfo | URL, init?: RequestInit) => {
 			if (String(input) !== ENVELOPE_URL) return f.impl(input, init);
 			inFlight += 1;
@@ -309,7 +308,7 @@ describe('uptime prober (shared decision 0010)', () => {
 		}) as unknown as typeof fetch;
 		const out = await run({ fetchImpl: slowSentry, env, ...fast });
 		expect(peak).toBe(2);
-		expect(out.reported).toEqual(['https://console.audiokit.ai', 'https://audiokit.ai']);
+		expect(out.reported).toEqual(['https://audiokit.ai', 'https://labelkit.co/login']);
 	});
 
 	describe('heartbeat (UPTIME_PROBE_MONITOR_SLUG)', () => {
