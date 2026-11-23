@@ -6,7 +6,7 @@ import { apiReference } from './api-reference';
 it('renders the checked-in operations with resolved parameters, responses and authentication', () => {
 	const reference = apiReference(readFileSync('docs/openapi.yaml', 'utf8'));
 	const operations = reference.groups.flatMap((group) => group.operations);
-	expect(operations).toHaveLength(5);
+	expect(operations).toHaveLength(7);
 	expect(new Set(operations.map((op) => op.id)).size).toBe(operations.length);
 	expect(operations.find((op) => op.path === '/v1/openapi.yaml')?.auth).toBe(
 		'No authentication required.'
