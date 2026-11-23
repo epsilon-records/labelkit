@@ -31,8 +31,8 @@
 		<div class="spread">
 			<h1 class="display">
 				{r.title}{#if r.versionTitle}<span class="muted" style="font-size: 0.4em; font-weight: 500">
-						{r.versionTitle}</span
-					>{/if}
+						{r.versionTitle}
+					</span>{/if}
 			</h1>
 			{#if data.can.edit}
 				<div class="btn-group">
@@ -88,16 +88,16 @@
 									<div class="muted" style="margin-top: 4px; font-size: 14px">
 										{#if t.recording.versionTitle}{`${t.recording.versionTitle} — `}{/if}{#each t.credits as c, i (c.id)}{#if i},
 											{/if}{#if c.role !== 'main'}<span>{c.role}</span>
-											{/if}<a href="/artists/{c.partyId}" class="plain soft">{c.name}</a
-											>{#if !c.approvedAt}
+											{/if}<a href="/artists/{c.partyId}" class="plain soft">
+												{c.name}
+											</a>{#if !c.approvedAt}
 												<span class="pending">pending</span>{/if}{/each}
 									</div>
 								</td>
 								<td>
-									<span class="bar" aria-hidden="true"
-										><span style:width="{((t.recording.durationMs ?? 0) / longest) * 100}%"
-										></span></span
-									>
+									<span class="bar" aria-hidden="true">
+										<span style:width="{((t.recording.durationMs ?? 0) / longest) * 100}%"></span>
+									</span>
 								</td>
 								<td class="mono soft">{t.recording.isrc}</td>
 								<td class="mono num">{fmt(t.recording.durationMs)}</td>

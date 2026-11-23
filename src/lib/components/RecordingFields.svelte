@@ -27,9 +27,9 @@
 		errors[key] ? { 'aria-invalid': true as const, 'aria-describedby': `${key}-error` } : {};
 </script>
 
-{#snippet error(field: string)}{#if fieldError(field)}<Field.Error id="{field}-error"
-			>{fieldError(field)}</Field.Error
-		>{/if}{/snippet}
+{#snippet error(field: string)}{#if fieldError(field)}<Field.Error id="{field}-error">
+			{fieldError(field)}
+		</Field.Error>{/if}{/snippet}
 <Field.Group class="gap-2.5">
 	<Field.Field orientation="responsive">
 		<Field.Label for="title">Title</Field.Label>

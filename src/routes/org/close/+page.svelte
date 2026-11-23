@@ -23,9 +23,9 @@
 
 	{#if data.renewing}
 		<div class="alert error" role="alert">
-			This label is on the Label plan and will renew. <a href="/org/billing"
-				>Cancel it on the Billing page</a
-			> first.
+			This label is on the Label plan and will renew. <a href="/org/billing">
+				Cancel it on the Billing page
+			</a> first.
 		</div>
 	{/if}
 	{#if form?.error}

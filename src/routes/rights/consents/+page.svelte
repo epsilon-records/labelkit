@@ -83,25 +83,25 @@
 		<div class="table-wrap">
 			<table class="data" style="min-width: 780px">
 				<thead>
-					<tr
-						><th>From</th><th>For</th><th>Covers</th><th>Granted</th><th>Expires</th><th>State</th
-						><th></th></tr
-					>
+					<tr>
+						<th>From</th><th>For</th><th>Covers</th><th>Granted</th><th>Expires</th><th>
+							State
+						</th><th></th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each data.consents as c (c.id)}
 						<tr>
-							<td
-								><a href="/artists/{c.partyId}" class="plain" style="font-weight: 600">{c.party}</a
-								></td
-							>
+							<td>
+								<a href="/artists/{c.partyId}" class="plain" style="font-weight: 600">{c.party}</a>
+							</td>
 							<td>{label(c.purpose)}</td>
 							<td>
-								{#if c.recordingId}<a href="/recordings/{c.recordingId}" class="plain"
-										>{c.recording}</a
-									>{#if c.recordingVersion}<span class="muted">
-											· {c.recordingVersion}</span
-										>{/if}{:else}<span class="muted">All their recordings</span>{/if}
+								{#if c.recordingId}<a href="/recordings/{c.recordingId}" class="plain">
+										{c.recording}
+									</a>{#if c.recordingVersion}<span class="muted">
+											· {c.recordingVersion}
+										</span>{/if}{:else}<span class="muted">All their recordings</span>{/if}
 							</td>
 							<td class="mono muted">{c.grantedOn}</td>
 							<td class="mono muted">{c.expiresOn ?? '—'}</td>
@@ -110,9 +110,9 @@
 								{#if data.options && !c.revokedAt}
 									<!-- Decision 0023: a native disclosure, so the confirm step works without JS. -->
 									<details class="confirm">
-										<summary class="btn small danger" aria-label="Revoke {c.party}’s consent"
-											>Revoke</summary
-										>
+										<summary class="btn small danger" aria-label="Revoke {c.party}’s consent">
+											Revoke
+										</summary>
 										<form method="POST" action="?/revoke" class="confirm-panel">
 											<input type="hidden" name="consentId" value={c.id} />
 											<p>
@@ -125,8 +125,10 @@
 												size="small"
 												name="removalConfirmed"
 												value="yes"
-												aria-label="Confirm: revoke {c.party}’s consent">Revoke consent</Button
+												aria-label="Confirm: revoke {c.party}’s consent"
 											>
+												Revoke consent
+											</Button>
 										</form>
 									</details>
 								{/if}
@@ -157,9 +159,9 @@
 						{...invalid('partyId')}
 					>
 						<NativeSelect.Option value="">—</NativeSelect.Option>
-						{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}
-								>{p.name}</NativeSelect.Option
-							>{/each}
+						{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}>
+								{p.name}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{@render fieldErrorFor('partyId')}
 				</Field.Field>
@@ -171,8 +173,9 @@
 						value={values.purpose ?? 'stem_separation'}
 						{...invalid('purpose')}
 					>
-						{#each PURPOSES as [k, l] (k)}<NativeSelect.Option value={k}>{l}</NativeSelect.Option
-							>{/each}
+						{#each PURPOSES as [k, l] (k)}<NativeSelect.Option value={k}>
+								{l}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{@render fieldErrorFor('purpose')}
 				</Field.Field>
@@ -197,9 +200,9 @@
 						{...invalid('agreementId')}
 					>
 						<NativeSelect.Option value="">—</NativeSelect.Option>
-						{#each data.agreements ?? [] as a (a.id)}<NativeSelect.Option value={a.id}
-								>{a.title}</NativeSelect.Option
-							>{/each}
+						{#each data.agreements ?? [] as a (a.id)}<NativeSelect.Option value={a.id}>
+								{a.title}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{@render fieldErrorFor('agreementId')}
 				</Field.Field>

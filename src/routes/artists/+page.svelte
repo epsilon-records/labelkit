@@ -35,13 +35,15 @@
 			<tbody>
 				{#each filtered as a (a.id)}
 					<tr>
-						<td
-							><a
+						<td>
+							<a
 								href="/artists/{a.id}"
 								class="plain"
-								style="font-weight: 600; color: var(--text-strong)">{a.name}</a
-							></td
-						>
+								style="font-weight: 600; color: var(--text-strong)"
+							>
+								{a.name}
+							</a>
+						</td>
 						<td class="num mono">{a.releases}</td>
 						<td class="num mono">{a.recordings}</td>
 						<td class="num mono">{a.remixes}</td>

@@ -65,8 +65,10 @@
 									<a
 										href="/releases/{x.id}"
 										class="plain"
-										style="font-weight: 600; color: var(--text-strong)">{x.title}</a
-									>{#if x.versionTitle}<span class="muted"> · {x.versionTitle}</span>{/if}
+										style="font-weight: 600; color: var(--text-strong)"
+									>
+										{x.title}
+									</a>{#if x.versionTitle}<span class="muted"> · {x.versionTitle}</span>{/if}
 								</td>
 								<td>{x.artists.join(', ') || '—'}</td>
 								<td class="mono">{x.catalogNumber ?? '—'}</td>
@@ -99,8 +101,10 @@
 									<a
 										href="/recordings/{x.id}"
 										class="plain"
-										style="font-weight: 600; color: var(--text-strong)">{x.title}</a
-									>{#if x.versionTitle}<span class="muted"> · {x.versionTitle}</span>{/if}
+										style="font-weight: 600; color: var(--text-strong)"
+									>
+										{x.title}
+									</a>{#if x.versionTitle}<span class="muted"> · {x.versionTitle}</span>{/if}
 								</td>
 								<td>{x.artists.join(', ') || '—'}</td>
 								<td class="mono muted">{x.isrc}</td>
@@ -126,13 +130,15 @@
 					<tbody>
 						{#each r.artists as x (x.id)}
 							<tr>
-								<td
-									><a
+								<td>
+									<a
 										href="/artists/{x.id}"
 										class="plain"
-										style="font-weight: 600; color: var(--text-strong)">{x.name}</a
-									></td
-								>
+										style="font-weight: 600; color: var(--text-strong)"
+									>
+										{x.name}
+									</a>
+								</td>
 								<td class="num mono">{x.credits}</td>
 							</tr>
 						{/each}

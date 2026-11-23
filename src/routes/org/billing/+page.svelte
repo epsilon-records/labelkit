@@ -66,9 +66,9 @@
 					{#each rows as row (row.label)}
 						<tr>
 							<td>{row.label}</td>
-							<td style:color={!data.exempt && row.used >= row.limit ? 'var(--warn)' : undefined}
-								>{row.used}</td
-							>
+							<td style:color={!data.exempt && row.used >= row.limit ? 'var(--warn)' : undefined}>
+								{row.used}
+							</td>
 							<td>{data.exempt ? 'No limit' : row.limit}</td>
 						</tr>
 					{/each}
