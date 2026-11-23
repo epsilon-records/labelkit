@@ -310,7 +310,14 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 				...title(node),
 				...genre(node),
 				catalogNumber: text(id, 'CatalogNumber') || null,
-				releaseDate: date(text(node, 'ReleaseDate')),
+				releaseDate: (() => {
+					const raw = text(node, 'ReleaseDate');
+					if (/^[1-9]\\d{3}-(?:0[1-9]|1[0-2])$/.test(raw)) {
+						warn('ern.unmapped', 'ReleaseDate ' + raw + ' has month precision and was not imported.');
+						return null;
+					}
+					return date(raw);
+				})(),
 				artists: releaseCredits
 					.filter((credit) => credit.role === 'main')
 					.map((credit) => credit.name),
