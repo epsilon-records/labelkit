@@ -398,7 +398,7 @@ deploy is needed. The Netlify variables can stay.
 ## Catalogue import
 
 At `/import`, run a dry run with one UTF-8 DDEX ERN 4.3 XML message or a ZIP containing XML messages.
-Uploads and extracted XML are each limited to 5 MB. The dry run shows the changes and reports
+Uploads are limited to 4 MB and extracted XML to 5 MB. The dry run shows the changes and reports
 unsupported metadata and rights fields before you select the same file again to confirm.
 
 LabelKit matches releases by UPC/EAN and recordings by ISRC. It adds track placements by disc and

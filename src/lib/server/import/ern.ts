@@ -1,3 +1,4 @@
+import { SaxesParser } from 'saxes';
 import { create } from 'xmlbuilder2';
 import { ERN_NAMESPACE } from '../ddex/ern';
 import { isValidGtin, isValidIsrc, normalizeIsrc, partyMatchKey } from './identifiers';
@@ -166,13 +167,10 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 	if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(document.text)) {
 		throw new InvalidErn('DTD and entity declarations are not accepted.');
 	}
-	// The XML builder can recover from an unterminated document. Require the final root close.
-	// This also rejects uploads cut off inside a nested element.
-	if (!/<\/([A-Za-z_][\w.-]*:)?NewReleaseMessage\s*>\s*$/.test(document.text)) {
-		throw new InvalidErn('The XML is incomplete or has an unclosed root element.');
-	}
 	let root: Element | null;
 	try {
+		// Validate the complete document before building the catalogue tree.
+		new SaxesParser({ xmlns: true }).write(document.text).close();
 		root = (create(document.text).doc().node as unknown as DomDocument).documentElement;
 	} catch {
 		throw new InvalidErn('The XML could not be parsed.');
@@ -228,8 +226,10 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 			throw new InvalidErn('Multiple sound recording editions cannot be imported.');
 		const currentIsrcs = new Set(
 			children(child(node, 'SoundRecordingEdition'), 'ResourceId')
-				.filter((id) => text(id, 'IsReplaced').toLowerCase() !== 'true')
-				.map((id) => normalizeIsrc(text(id, 'ISRC')))
+				.filter((id) => !['true', '1'].includes(id.getAttribute('IsReplaced')?.trim() ?? ''))
+				.map((id) => text(id, 'ISRC'))
+				.filter(Boolean)
+				.map(normalizeIsrc)
 		);
 		if (currentIsrcs.size !== 1 || !isValidIsrc([...currentIsrcs][0])) {
 			throw new InvalidErn('Expected exactly one valid current ISRC for ' + ref + '.');
@@ -312,8 +312,11 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 				catalogNumber: text(id, 'CatalogNumber') || null,
 				releaseDate: (() => {
 					const raw = text(node, 'ReleaseDate');
-					if (/^[1-9]\\d{3}-(?:0[1-9]|1[0-2])$/.test(raw)) {
-						warn('ern.unmapped', 'ReleaseDate ' + raw + ' has month precision and was not imported.');
+					if (/^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(raw)) {
+						warn(
+							'ern.unmapped',
+							'ReleaseDate ' + raw + ' has partial precision and was not imported.'
+						);
 						return null;
 					}
 					return date(raw);

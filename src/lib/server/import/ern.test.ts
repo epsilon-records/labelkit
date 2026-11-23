@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { generateErn } from '../ddex/ern';
 import { completeErnFixture, testContext } from '../ddex/ern.fixture';
 import { parseErnDocuments } from './ern';
-import { MAX_IMPORT_BYTES, readErnUpload } from './ern-upload';
+import { MAX_ERN_UPLOAD_BYTES, readErnUpload } from './ern-upload';
 
 function xml() {
 	const snapshot = completeErnFixture();
@@ -92,7 +92,33 @@ it('reads UTF-8 XML and ZIP entries and rejects invalid or oversized uploads', a
 		{ name: 'message.xml', text: '<first/>' }
 	]);
 	await expect(readErnUpload('bad.zip', Buffer.from('bad'))).rejects.toThrow('could not be read');
-	await expect(readErnUpload('too-large.xml', Buffer.alloc(MAX_IMPORT_BYTES + 1))).rejects.toThrow(
-		'5 MB'
+	await expect(
+		readErnUpload('too-large.xml', Buffer.alloc(MAX_ERN_UPLOAD_BYTES + 1))
+	).rejects.toThrow('4 MB');
+});
+
+it('uses the current ISRC and ignores proprietary-only IDs', () => {
+	const source = xml().replace(
+		'<ResourceId>',
+		'<ResourceId IsReplaced="1"><ISRC>ZZTST2600002</ISRC></ResourceId><ResourceId><ProprietaryId Namespace="test">p1</ProprietaryId></ResourceId><ResourceId>'
 	);
+	const plan = parseErnDocuments([{ name: 'replaced.xml', text: source }]);
+	expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+	expect([...plan.recordings.keys()]).toEqual(['ZZTST2600001']);
+});
+
+it('accepts a trailing XML comment and reports a month-precision date', () => {
+	const source =
+		xml().replace('2026-11-17</ReleaseDate>', '2026-11</ReleaseDate>') + '<!-- complete -->';
+	const plan = parseErnDocuments([{ name: 'complete.xml', text: source }]);
+	expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+	expect(plan.releases.get('012345678905')?.releaseDate).toBeNull();
+	expect(plan.issues.some((issue) => issue.message.includes('partial precision'))).toBe(true);
+});
+
+it('rejects a truncated document before mapping catalogue data', () => {
+	const source = xml().replace('</ern:NewReleaseMessage>', '');
+	const plan = parseErnDocuments([{ name: 'truncated.xml', text: source }]);
+	expect(plan.issues.some((issue) => issue.level === 'error')).toBe(true);
+	expect(plan.releases.size).toBe(0);
 });

@@ -1,7 +1,8 @@
 import { fromBufferPromise } from 'yauzl';
 import type { ErnDocument } from './ern';
 
-export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+export const MAX_ERN_UPLOAD_BYTES = 4_000_000;
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 100;
 
 export class ErnUploadError extends Error {}
@@ -9,8 +10,8 @@ export class ErnUploadError extends Error {}
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
 export async function readErnUpload(name: string, bytes: Buffer): Promise<ErnDocument[]> {
-	if (!bytes.length || bytes.length > MAX_IMPORT_BYTES) {
-		throw new ErnUploadError('Choose a non-empty file up to 5 MB.');
+	if (!bytes.length || bytes.length > MAX_ERN_UPLOAD_BYTES) {
+		throw new ErnUploadError('Choose a non-empty file up to 4 MB.');
 	}
 	try {
 		if (/\.xml$/i.test(name)) return [{ name, text: decoder.decode(bytes) }];

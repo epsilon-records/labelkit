@@ -14,10 +14,14 @@ import {
 	summarizePlan
 } from '#lib/server/import/symphonic.js';
 import { parseErnDocuments } from '#lib/server/import/ern.js';
-import { ErnUploadError, MAX_IMPORT_BYTES, readErnUpload } from '#lib/server/import/ern-upload.js';
+import {
+	ErnUploadError,
+	MAX_ERN_UPLOAD_BYTES,
+	readErnUpload
+} from '#lib/server/import/ern-upload.js';
 import type { Actions, PageServerLoad } from './$types';
 
-const MAX_BYTES = MAX_IMPORT_BYTES;
+const MAX_BYTES = 5 * 1024 * 1024;
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const m = requireScope(locals, 'catalog:write');
@@ -51,8 +55,8 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	let plan: ReturnType<typeof parseSymphonicInventory>;
 	if (isErn) {
 		const file = form.get('file');
-		if (!(file instanceof File) || !file.size || file.size > MAX_BYTES) {
-			return fail(400, { error: 'Choose a non-empty ERN XML or ZIP file up to 5 MB.' });
+		if (!(file instanceof File) || !file.size || file.size > MAX_ERN_UPLOAD_BYTES) {
+			return fail(400, { error: 'Choose a non-empty ERN XML or ZIP file up to 4 MB.' });
 		}
 		name = file.name;
 		const bytes = Buffer.from(await file.arrayBuffer());
@@ -98,7 +102,7 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	let result;
 	try {
 		result = await locals.db(async (tx) => {
-			if (limits || isErn) await lockLimit(tx, m.orgId, 'tracks');
+			await lockLimit(tx, m.orgId, 'tracks');
 			const applied = await applyImport(tx, plan, {
 				orgId: m.orgId,
 				actor: { id: locals.user!.id, kind: 'user' },
