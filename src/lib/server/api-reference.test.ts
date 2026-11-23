@@ -1,17 +1,26 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020';
+import { parse } from 'yaml';
 import { apiReference } from './api-reference';
 
 it('renders the checked-in operations with resolved parameters, responses and authentication', () => {
-	const reference = apiReference(readFileSync('docs/openapi.yaml', 'utf8'));
+	const source = readFileSync('docs/openapi.yaml', 'utf8');
+	const contract = parse(source) as { paths: Record<string, Record<string, unknown>> };
+	const methods = /^(get|post|put|patch|delete|head|options|trace)$/;
+	const expected = Object.entries(contract.paths).flatMap(([path, item]) =>
+		Object.keys(item)
+			.filter((method) => methods.test(method))
+			.map((method) => method.toUpperCase() + ' ' + path)
+	);
+	const reference = apiReference(source);
 	const operations = reference.groups.flatMap((group) => group.operations);
-	expect(operations).toHaveLength(7);
+	expect(operations.map((op) => op.method + ' ' + op.path).sort()).toEqual(expected.sort());
 	expect(new Set(operations.map((op) => op.id)).size).toBe(operations.length);
 	expect(operations.find((op) => op.path === '/v1/openapi.yaml')?.auth).toBe(
 		'No authentication required.'
 	);
-	const releases = operations.find((op) => op.path === '/v1/releases')!;
+	const releases = operations.find((op) => op.method === 'GET' && op.path === '/v1/releases')!;
 	expect(releases.auth).toContain('bearer');
 	expect(releases.parameters.map((p) => p.name)).toEqual(['limit', 'after']);
 	expect(releases.responses.find((r) => r.status === '200')?.content[0].schema).toContain(
