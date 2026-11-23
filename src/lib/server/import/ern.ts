@@ -118,7 +118,7 @@ const contributorRoles = new Map<string, PlannedCredit['role']>([
 
 // Record unsupported data by XML path, never as ownership or commercial instructions.
 const unmapped =
-	/^(?:.*Rights.*|.*Territor.*|.*Share.*|.*Deal.*|CommercialModelType|UseType|ValidityPeriod|PartyId|Name\w*Variant|ProprietaryId|WorkId|ParentalWarningType|[PC]Line|Technical\w*|Image|Video|TrackRelease|DisplayArtistName|LanguageOfPerformance)$/i;
+	/^(?:.*Rights.*|.*Territor.*|.*Share.*|.*Deal.*|CommercialModelType|UseType|ValidityPeriod|PartyId|Name\w*Variant|ProprietaryId|WorkId|ParentalWarningType|[PC]Line|Technical\w*|Image|Video|TrackRelease|DisplayArtistName|LanguageOfPerformance|OriginalReleaseDate)$/i;
 
 function losses(root: Element, report: (code: string, message: string) => void) {
 	const pending: { node: Element; path: string; depth: number }[] = [
@@ -129,6 +129,9 @@ function losses(root: Element, report: (code: string, message: string) => void) 
 		const { node, path, depth } = pending.pop()!;
 		if (++count > 20000 || depth > 32) throw new InvalidErn('ERN message is too complex.');
 		if (unmapped.test(node.localName)) report('ern.unmapped', path + ' was not imported.');
+		if (node.localName === 'ReleaseDate' && node.getAttribute('ApplicableTerritoryCode')) {
+			report('ern.unmapped', path + '/@ApplicableTerritoryCode was not imported.');
+		}
 		if (node.getAttribute('LanguageAndScriptCode')) {
 			report('ern.unmapped', path + '/@LanguageAndScriptCode was not imported.');
 		}
@@ -252,10 +255,13 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 		const upc = text(id, 'ICPN');
 		if (!isValidGtin(upc)) throw new InvalidErn('A release has a missing or invalid UPC/EAN.');
 		const references = children(node, 'ReleaseLabelReference');
-		if (references.length !== 1) throw new InvalidErn('A release must name one label reference.');
-		const labelRef = required(text(node, 'ReleaseLabelReference'), 'ReleaseLabelReference');
-		const label = party(labelRef);
-		usedLabels.add(labelRef);
+		const labelRefs = references.map((reference) =>
+			required(reference.textContent?.trim() ?? '', 'ReleaseLabelReference')
+		);
+		const labels = new Set(labelRefs.map(party));
+		if (labels.size !== 1) throw new InvalidErn('A release must name one unambiguous label.');
+		const label = [...labels][0];
+		for (const labelRef of labelRefs) usedLabels.add(labelRef);
 		if (!plan.labels.includes(label)) plan.labels.push(label);
 		const type = releaseTypes.get(text(node, 'ReleaseType'));
 		if (!type) throw new InvalidErn('Unsupported or missing release type for UPC/EAN ' + upc + '.');
