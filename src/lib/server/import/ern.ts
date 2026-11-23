@@ -163,6 +163,11 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 	if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(document.text)) {
 		throw new InvalidErn('DTD and entity declarations are not accepted.');
 	}
+	// The XML builder can recover from an unterminated document. Require the final root close.
+	// This also rejects uploads cut off inside a nested element.
+	if (!/<\/([A-Za-z_][\w.-]*:)?NewReleaseMessage\s*>\s*$/.test(document.text)) {
+		throw new InvalidErn('The XML is incomplete or has an unclosed root element.');
+	}
 	let root: Element | null;
 	try {
 		root = (create(document.text).doc().node as unknown as DomDocument).documentElement;
