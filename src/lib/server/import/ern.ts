@@ -154,7 +154,7 @@ function losses(root: Element, report: (code: string, message: string) => void) 
 				depth: depth + 1
 			};
 		});
-		pending.push(...next.reverse());
+		for (let i = next.length - 1; i >= 0; i--) pending.push(next[i]);
 	}
 }
 
@@ -218,10 +218,15 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 		const editions = children(node, 'SoundRecordingEdition');
 		if (editions.length > 1)
 			throw new InvalidErn('Multiple sound recording editions cannot be imported.');
-		const isrc = normalizeIsrc(
-			text(child(child(node, 'SoundRecordingEdition'), 'ResourceId'), 'ISRC')
+		const currentIsrcs = new Set(
+			children(child(node, 'SoundRecordingEdition'), 'ResourceId')
+				.filter((id) => text(id, 'IsReplaced').toLowerCase() !== 'true')
+				.map((id) => normalizeIsrc(text(id, 'ISRC')))
 		);
-		if (!isValidIsrc(isrc)) throw new InvalidErn('Missing or invalid ISRC for ' + ref + '.');
+		if (currentIsrcs.size !== 1 || !isValidIsrc([...currentIsrcs][0])) {
+			throw new InvalidErn('Expected exactly one valid current ISRC for ' + ref + '.');
+		}
+		const isrc = [...currentIsrcs][0];
 		const row: PlannedRecording = {
 			isrc,
 			...title(node),
