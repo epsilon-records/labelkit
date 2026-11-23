@@ -69,6 +69,15 @@ pnpm --filter labelkit-co test:e2e    # runs dist/cli.js over stdio against a fa
 
 `buildServer(api)` in `src/server.ts` is the server factory: it takes anything that can answer the `/v1` reads, so the same tools can later be hosted remotely. The tests include a drift check that each tool's output schema equals the response schema in `docs/openapi.yaml`.
 
+## Releasing
+
+1. Verify the deploy that ships the API endpoints is live.
+2. Run the **MCP smoke test** workflow (manual). It must pass.
+3. In a PR, remove `"private": true` (and bump `version` in `package.json` and `src/version.ts` if needed). Merge it.
+4. On `main`, run the **MCP publish** workflow with that `version`. It refuses a private package, a version already on npm, or a run off `main`, and publishes with provenance.
+5. Move ownership of `labelkit-co` to the `epsilonstack` org (npm package settings, or `npm access`).
+6. Switch the workflow to trusted publishing (OIDC), then have the `NPM_TOKEN` token revoked.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

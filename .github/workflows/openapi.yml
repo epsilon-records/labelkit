@@ -17,19 +17,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Fetch the base branch
         run: git fetch --depth=1 origin "${{ github.base_ref }}"
 
       - name: Changelog
-        uses: oasdiff/oasdiff-action/changelog@v0.1.23
+        uses: oasdiff/oasdiff-action/changelog@14ca7009a63c417dfe27b7c44359c4bcccaf8eee # v0.2.1
         with:
           base: origin/${{ github.base_ref }}:docs/openapi.yaml
           revision: HEAD:docs/openapi.yaml
 
       - name: Breaking changes (fail)
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'api-breaking') }}
-        uses: oasdiff/oasdiff-action/breaking@v0.1.23
+        uses: oasdiff/oasdiff-action/breaking@14ca7009a63c417dfe27b7c44359c4bcccaf8eee # v0.2.1
         with:
           base: origin/${{ github.base_ref }}:docs/openapi.yaml
           revision: HEAD:docs/openapi.yaml

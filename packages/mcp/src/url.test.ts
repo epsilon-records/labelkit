@@ -23,6 +23,15 @@ describe('normalizeBaseUrl', () => {
 		expect(() => normalizeBaseUrl('not a url')).toThrow();
 	});
 
+	it('refuses plain http to anything but a loopback host, so a hand-built client cannot leak the key', () => {
+		expect(() => normalizeBaseUrl('http://api.example.org')).toThrow(TypeError);
+		expect(() => new LabelKitClient({ apiKey: KEY, baseUrl: 'http://api.example.org' })).toThrow(
+			TypeError
+		);
+		expect(normalizeBaseUrl('http://127.0.0.1:5173/')).toBe('http://127.0.0.1:5173');
+		expect(normalizeBaseUrl('http://[::1]:5173')).toBe('http://[::1]:5173');
+	});
+
 	it('is what the client and config use', async () => {
 		expect(loadConfig({ LABELKIT_API_KEY: KEY, LABELKIT_API_URL: 'https://x//' }).baseUrl).toBe(
 			'https://x'

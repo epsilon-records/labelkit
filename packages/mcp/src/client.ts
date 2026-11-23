@@ -65,11 +65,31 @@ export class LabelKitClient implements LabelKitApi {
 			if (value !== undefined) url.searchParams.set(name, String(value));
 		}
 
+		return this.#request(url, { method: 'GET' });
+	}
+
+	async post(path: string, payload: object, idempotencyKey?: string): Promise<unknown> {
+		return this.#request(new URL(this.#baseUrl + path), {
+			method: 'POST',
+			body: JSON.stringify(payload),
+			headers: {
+				'Content-Type': 'application/json',
+				...(idempotencyKey === undefined ? {} : { 'Idempotency-Key': idempotencyKey })
+			}
+		});
+	}
+
+	async #request(
+		url: URL,
+		request: RequestInit & { headers?: Record<string, string> }
+	): Promise<unknown> {
 		let response: Response;
+		let text: string;
 		try {
 			response = await this.#fetch(url, {
-				method: 'GET',
+				...request,
 				headers: {
+					...request.headers,
 					Authorization: `Bearer ${this.#apiKey}`,
 					Accept: 'application/json',
 					'User-Agent': `labelkit-co/${VERSION}`
@@ -78,6 +98,8 @@ export class LabelKitClient implements LabelKitApi {
 				redirect: 'error',
 				signal: AbortSignal.timeout(this.#timeoutMs)
 			});
+			// The body can fail or time out after the headers arrive; that is a transport failure too.
+			text = await response.text();
 		} catch (e) {
 			const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
 			const cause = (e as { cause?: { code?: string } }).cause?.code;
@@ -90,7 +112,6 @@ export class LabelKitClient implements LabelKitApi {
 			);
 		}
 
-		const text = await response.text();
 		let body: unknown;
 		try {
 			body = JSON.parse(text);

@@ -1,15 +1,17 @@
 <script lang="ts">
-	// System / Light / Dark (labelkit 0038). The choice lives in this browser's localStorage under
-	// 'theme'; static/theme-init.js applies it before first paint, this control changes it after.
+	// System / Light / Dark (labelkit 0038), as one small icon button that cycles through the
+	// three. The choice lives in this browser's localStorage under 'theme'; static/theme-init.js
+	// applies it before first paint, this control changes it after.
 	import { onMount } from 'svelte';
+	import Monitor from '@lucide/svelte/icons/monitor';
+	import Sun from '@lucide/svelte/icons/sun';
+	import Moon from '@lucide/svelte/icons/moon';
 
 	type Choice = 'system' | 'light' | 'dark';
-	const options: { value: Choice; label: string }[] = [
-		{ value: 'system', label: 'System' },
-		{ value: 'light', label: 'Light' },
-		{ value: 'dark', label: 'Dark' }
-	];
+	const order: Choice[] = ['system', 'light', 'dark'];
+	const label: Record<Choice, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 	let choice = $state<Choice>('system');
+	const next = $derived(order[(order.indexOf(choice) + 1) % order.length]);
 
 	onMount(() => {
 		try {
@@ -20,49 +22,51 @@
 		}
 	});
 
-	function pick(next: Choice) {
-		choice = next;
+	function pick(value: Choice) {
+		choice = value;
 		const root = document.documentElement;
-		if (next === 'system') delete root.dataset.theme;
-		else root.dataset.theme = next;
+		if (value === 'system') delete root.dataset.theme;
+		else root.dataset.theme = value;
 		try {
-			if (next === 'system') localStorage.removeItem('theme');
-			else localStorage.setItem('theme', next);
+			if (value === 'system') localStorage.removeItem('theme');
+			else localStorage.setItem('theme', value);
 		} catch {
 			// Storage blocked: the choice lasts for this page only.
 		}
 	}
 </script>
 
-<div class="theme" role="group" aria-label="Theme">
-	{#each options as o (o.value)}
-		<button type="button" aria-pressed={choice === o.value} onclick={() => pick(o.value)}
-			>{o.label}</button
-		>
-	{/each}
-</div>
+<!-- 44 px hit area (the bar's touch floor, audit F-11); the visible part is an 18 px icon. -->
+<button
+	type="button"
+	class="theme"
+	aria-label="Theme: {label[choice]}. Switch to {label[next]}"
+	title="Theme: {label[choice]}"
+	onclick={() => pick(next)}
+>
+	{#if choice === 'light'}
+		<Sun size={18} aria-hidden="true" />
+	{:else if choice === 'dark'}
+		<Moon size={18} aria-hidden="true" />
+	{:else}
+		<Monitor size={18} aria-hidden="true" />
+	{/if}
+</button>
 
 <style>
 	.theme {
 		display: inline-flex;
-		border: 1px solid var(--line-control);
-	}
-	button {
-		min-height: 44px;
-		padding: 0 12px;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		font: inherit;
-		font-size: 13px;
 		cursor: pointer;
 	}
-	button:hover {
+	.theme:hover {
 		color: var(--text-strong);
-	}
-	button[aria-pressed='true'] {
-		background: var(--accent);
-		color: var(--on-accent);
-		font-weight: 600;
 	}
 </style>

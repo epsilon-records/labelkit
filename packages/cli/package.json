@@ -1,0 +1,26 @@
+{
+	"name": "@epsilon-records/labelkit-cli",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Read and add catalogue entries from the command line",
+	"bin": {
+		"labelkit": "dist/cli/src/main.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"check": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.6",
+		"typescript": "^6.0.3",
+		"vitest": "^5.0.5"
+	},
+	"engines": {
+		"node": ">=20"
+	}
+}
