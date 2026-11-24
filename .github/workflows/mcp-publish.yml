@@ -1,0 +1,78 @@
+name: MCP publish
+
+# Manual only (EPSILON-138, decision D4: Nate approves each publish). Publishes labelkit-co from
+# packages/mcp to npm with provenance.
+#
+# Run it only after the deploy is verified live and the "MCP smoke test" workflow has passed, and
+# after a PR has removed "private" from packages/mcp/package.json. The checks below stop the run
+# early, with a message, if any of that is not so.
+#
+# TODO: this first publish uses the NPM_TOKEN secret (a granular token for the epsilonstack org).
+# After it succeeds, switch to npm trusted publishing (OIDC, as AudioKit does for PyPI): add this
+# workflow as a trusted publisher on npmjs.com, drop NODE_AUTH_TOKEN, then ask Nate to revoke the
+# token and delete the secret. `id-token: write` is already granted for provenance and for that.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish. Must equal "version" in packages/mcp/package.json.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run from main only
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Publish runs from main only; this run is on $REF. Merge the change, then run the workflow on main."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Check the package is ready to publish
+        working-directory: packages/mcp
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          private=$(node -p "require('./package.json').private === true")
+          if [ "$private" = "true" ]; then
+            echo "::error::$name is still \"private\": true. Remove it in a PR (after the deploy is verified and the smoke test passes), merge, then run this again."
+            exit 1
+          fi
+          if [ "$INPUT_VERSION" != "$version" ]; then
+            echo "::error::Input version $INPUT_VERSION does not equal packages/mcp/package.json version $version."
+            exit 1
+          fi
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::error::$name@$version already exists on npm. Bump the version in a PR first."
+            exit 1
+          fi
+          echo "Publishing $name@$version"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter labelkit-co build
+      - run: pnpm --filter labelkit-co test
+      - run: pnpm --filter labelkit-co test:e2e
+
+      - name: Publish to npm with provenance
+        working-directory: packages/mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

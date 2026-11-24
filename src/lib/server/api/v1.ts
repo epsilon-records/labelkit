@@ -1,7 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { and, asc, eq, gt } from 'drizzle-orm';
+import type { Analysis } from '#lib/analysis.js';
+import { recordingAnalysis } from '#lib/server/analysis.js';
 import type { Database } from '#lib/server/audit.js';
 import { getRecording, getRelease } from '#lib/server/catalog.js';
+import { MAX_QUERY, searchCatalog } from '#lib/server/search.js';
 import { labels, recordings, releases } from '#lib/server/db/schema.js';
 import type { ApiKeyScope } from '#lib/server/api-keys.js';
 
@@ -32,7 +35,8 @@ export function apiErrorResponse(e: ApiError): Response {
 /** Wrap a /v1 handler: ApiErrors become the error envelope, and every answer is no-store. */
 export function v1<E extends { locals: App.Locals }>(
 	scope: ApiKeyScope,
-	handler: (event: E, ctx: { orgId: string; db: App.Locals['db'] }) => Promise<unknown>
+	handler: (event: E, ctx: { orgId: string; db: App.Locals['db'] }) => Promise<unknown>,
+	status = 200
 ) {
 	return async (event: E): Promise<Response> => {
 		try {
@@ -43,7 +47,7 @@ export function v1<E extends { locals: App.Locals }>(
 				throw new ApiError(403, 'insufficient_scope', `This key lacks the ${scope} scope.`);
 			}
 			const body = await handler(event, { orgId: m.orgId, db: event.locals.db });
-			return json(body, { headers: { 'Cache-Control': 'no-store' } });
+			return json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 		} catch (e) {
 			if (e instanceof ApiError) return apiErrorResponse(e);
 			throw e;
@@ -148,4 +152,62 @@ export async function recordingDetail(tx: Database, orgId: string, id: string) {
 	const found = await getRecording(tx, orgId, id);
 	if (!found) throw new ApiError(404, 'not_found', 'Recording not found.');
 	return { recording: toWire(found) };
+}
+
+/**
+ * The `q` of GET /v1/search: 1 to 120 characters once whitespace is collapsed, no control
+ * characters. The app's search page cuts a longer query; the API says so instead, so a client
+ * never searches for something other than what it sent.
+ */
+export function searchQuery(url: URL): string {
+	const raw = url.searchParams.get('q') ?? '';
+	// Checked on the raw value: collapsing whitespace first would turn a tab or newline into a space.
+	// eslint-disable-next-line no-control-regex -- NUL and friends are refused by Postgres text
+	if (/[\u0000-\u001f\u007f]/.test(raw)) {
+		throw new ApiError(400, 'invalid_request', 'q must not contain control characters.');
+	}
+	const q = raw.replace(/\s+/g, ' ').trim();
+	if (!q) throw new ApiError(400, 'invalid_request', 'q is required.');
+	if (q.length > MAX_QUERY) {
+		throw new ApiError(400, 'invalid_request', `q must be at most ${MAX_QUERY} characters.`);
+	}
+	return q;
+}
+
+/** GET /v1/search: at most 25 releases, 25 recordings and 25 artists. Not paged. */
+export async function searchResponse(tx: Database, orgId: string, q: string) {
+	return toWire(await searchCatalog(tx, orgId, q));
+}
+
+const iso = (d: Date | string | null) => (d === null ? null : new Date(d).toISOString());
+
+/** The seven analysis cards in the API's wire shape. `result` is the stored AudioKit result, as is. */
+export function analysisWire(analysis: Analysis) {
+	return Object.fromEntries(
+		Object.entries(analysis).map(([key, c]) => [
+			key,
+			{
+				key: c.key,
+				label: c.label,
+				status: c.status,
+				reason: c.reason,
+				job_id: c.jobId,
+				result_job_id: c.resultJobId,
+				requested_at: iso(c.requestedAt),
+				finished_at: iso(c.finishedAt),
+				result: c.result
+			}
+		])
+	);
+}
+
+/** GET /v1/recordings/:id/analysis: stored results only; nothing is run. 404 if the recording isn't the label's. */
+export async function analysisDetail(tx: Database, orgId: string, id: string) {
+	const [found] = await tx
+		.select({ id: recordings.id })
+		.from(recordings)
+		.where(and(eq(recordings.orgId, orgId), eq(recordings.id, id)))
+		.limit(1);
+	if (!found) throw new ApiError(404, 'not_found', 'Recording not found.');
+	return { analysis: analysisWire(await recordingAnalysis(tx, orgId, id)) };
 }

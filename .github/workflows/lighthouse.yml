@@ -46,17 +46,17 @@ jobs:
       SUPABASE_CLI_VERSION: 3.1.0-beta.26
       LHCI_VERSION: 0.16.1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       # supabase/config.toml keeps local Auth off (the other jobs don't need it). Signing in does, so
@@ -79,9 +79,12 @@ jobs:
           status=$(supabase status --output json)
           # The CLI's own keys when it prints them (the names differ between versions); the script
           # mints them from the stack's default signing secret otherwise.
-          export SUPABASE_ANON_KEY=$(jq -r '.ANON_KEY // .PUBLISHABLE_KEY // empty' <<< "$status")
-          export SUPABASE_SERVICE_KEY=$(jq -r '.SERVICE_ROLE_KEY // .SECRET_KEY // empty' <<< "$status")
-          export SUPABASE_JWT_SECRET=$(jq -r '.JWT_SECRET // empty' <<< "$status")
+          SUPABASE_ANON_KEY=$(jq -r '.ANON_KEY // .PUBLISHABLE_KEY // empty' <<< "$status")
+          export SUPABASE_ANON_KEY
+          SUPABASE_SERVICE_KEY=$(jq -r '.SERVICE_ROLE_KEY // .SECRET_KEY // empty' <<< "$status")
+          export SUPABASE_SERVICE_KEY
+          SUPABASE_JWT_SECRET=$(jq -r '.JWT_SECRET // empty' <<< "$status")
+          export SUPABASE_JWT_SECRET
           node .github/lighthouse/session.mjs "$RUNNER_TEMP/lighthouse-session"
           echo "::add-mask::$(jq -r .Cookie "$RUNNER_TEMP/lighthouse-session/extra-headers.json")"
           psql "$DATABASE_URL" --quiet \
@@ -93,7 +96,8 @@ jobs:
           # The app talks to the stack on this runner, so sign-in works.
           PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
         run: |
-          export PUBLIC_SUPABASE_PUBLISHABLE_KEY="$(cat "$RUNNER_TEMP/lighthouse-session/publishable-key")"
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY="$(cat "$RUNNER_TEMP/lighthouse-session/publishable-key")"
+          export PUBLIC_SUPABASE_PUBLISHABLE_KEY
           pnpm build
           pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort > app.log 2>&1 &
           for _ in $(seq 60); do
@@ -132,7 +136,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: node .github/lighthouse/summary.mjs lighthouse-report | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: lighthouse-report

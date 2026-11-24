@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate migrations on a disposable local Supabase stack without production access
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,11 +23,12 @@ permissions:
 # One migration at a time: queue rather than cancel, so a run is never interrupted
 # halfway through applying a migration.
 concurrency:
-  group: production-migrations
+  group: ${{ inputs.dry_run && format('migration-dry-run-{0}', github.ref) || 'production-migrations' }}
   cancel-in-progress: false
 
 jobs:
   migrate:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 15
@@ -31,9 +37,9 @@ jobs:
       # Environment secret on `production`; never in the repo or build output.
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: pnpm
@@ -52,3 +58,37 @@ jobs:
       # Fail the job if production is still behind after migrating.
       - name: Verify production is current
         run: pnpm db:drift
+
+  dry-run:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_CLI_VERSION: 3.1.0-beta.26
+      PUBLIC_SUPABASE_URL: https://example.supabase.co
+      PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - run: supabase start
+      - name: Point only at the disposable database
+        run: |
+          db=$(supabase status --output json | jq -r .DB_URL)
+          echo "DATABASE_URL=$db" >> "$GITHUB_ENV"
+      - run: pnpm db:check
+      - run: pnpm db:drift --warn
+      - run: pnpm db:migrate
+      - run: pnpm db:drift
+      - name: Stop the disposable stack
+        if: always()
+        run: supabase stop
