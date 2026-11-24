@@ -290,6 +290,7 @@
 	<footer class="wrap">
 		<span>© 2015–2026 Epsilon Records · Amsterdam</span>
 		<span class="links">
+			<a href="/docs">API docs</a>
 			<a href="/privacy">Privacy</a>
 			<a href="/terms">Terms</a>
 			<a href="https://epsilonrecords.com">Epsilon Records</a>
