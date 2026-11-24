@@ -4,10 +4,16 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
-      day: 'monday'
       time: '06:00'
       timezone: 'Europe/Amsterdam'
     open-pull-requests-limit: 2
+    ignore:
+      # TypeScript 7 breaks check, Storybook and the schema jobs (labelkit#251). Lift when we migrate.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      # postgres 4.1.x adds a round trip per query; the round-trip budget tests fail (knowledge#233).
+      - dependency-name: 'postgres'
+        versions: ['4.1.x']
     groups:
       # One PR a month for minor and patch updates; majors come as a second grouped PR.
       all-updates:
@@ -20,7 +26,6 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
-      day: 'monday'
       time: '06:00'
       timezone: 'Europe/Amsterdam'
     open-pull-requests-limit: 2
