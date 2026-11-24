@@ -38,12 +38,12 @@
 	);
 </script>
 
-<noscript
-	><p class="soft">
+<noscript>
+	<p class="soft">
 		JavaScript is required to confirm removals. Removal requests without confirmation leave existing
 		records unchanged.
-	</p></noscript
->
+	</p>
+</noscript>
 
 <div class="table-wrap">
 	<table class="data">
@@ -59,8 +59,9 @@
 			{#each credits as c (c.id)}
 				<tr>
 					<td class="mono muted">{c.role}</td>
-					<td><a href="/artists/{c.partyId}" class="plain" style="font-weight: 600">{c.name}</a></td
-					>
+					<td>
+						<a href="/artists/{c.partyId}" class="plain" style="font-weight: 600">{c.name}</a>
+					</td>
 					<td>
 						{#if c.approvedAt}
 							<span class="muted">Approved</span>
@@ -88,8 +89,10 @@
 										type="submit"
 										variant="danger"
 										size="small"
-										aria-label="Remove {c.role} credit for {c.name}">Remove</Button
+										aria-label="Remove {c.role} credit for {c.name}"
 									>
+										Remove
+									</Button>
 								</form>
 							</div>
 						</td>

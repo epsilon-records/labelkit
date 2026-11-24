@@ -43,9 +43,9 @@
 			<label>
 				Switch to another label
 				<NativeSelect.Root name="orgId" wrapperClass="mt-1.5 max-w-[480px]">
-					{#each data.others as o (o.orgId)}<NativeSelect.Option value={o.orgId}
-							>{o.orgName}</NativeSelect.Option
-						>{/each}
+					{#each data.others as o (o.orgId)}<NativeSelect.Option value={o.orgId}>
+							{o.orgName}
+						</NativeSelect.Option>{/each}
 				</NativeSelect.Root>
 			</label>
 			<div><Button type="submit">Switch</Button></div>

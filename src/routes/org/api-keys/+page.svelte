@@ -79,12 +79,11 @@
 		{:else}
 			<div class="table-wrap">
 				<table class="data">
-					<thead
-						><tr
-							><th>Name</th><th>Key</th><th>Scopes</th><th>Created</th><th>Last used</th><th
-							></th></tr
-						></thead
-					>
+					<thead>
+						<tr>
+							<th>Name</th><th>Key</th><th>Scopes</th><th>Created</th><th>Last used</th><th></th>
+						</tr>
+					</thead>
 					<tbody>
 						{#each live as key (key.id)}
 							<tr>

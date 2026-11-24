@@ -58,6 +58,8 @@
 		fill="none"
 		stroke="currentColor"
 		stroke-width="1.5"
-		stroke-linecap="square"><path d="M4 6l4 4 4-4" /></svg
+		stroke-linecap="square"
 	>
+		<path d="M4 6l4 4 4-4" />
+	</svg>
 </div>

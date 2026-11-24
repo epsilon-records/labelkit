@@ -21,25 +21,24 @@
 			</section>
 
 			<section class="stats" aria-label="Catalog at a glance">
-				<a href="/releases"
-					><span class="value">{data.stats.releases}</span><span class="label">Releases</span></a
-				>
-				<a href="/releases"
-					><span class="value">{data.stats.recordings}</span><span class="label">Recordings</span
-					></a
-				>
-				<a href="/artists"
-					><span class="value">{data.stats.artists}</span><span class="label">Artists</span></a
-				>
+				<a href="/releases">
+					<span class="value">{data.stats.releases}</span><span class="label">Releases</span>
+				</a>
+				<a href="/releases">
+					<span class="value">{data.stats.recordings}</span><span class="label">Recordings</span>
+				</a>
+				<a href="/artists">
+					<span class="value">{data.stats.artists}</span><span class="label">Artists</span>
+				</a>
 				<div>
-					<span class="value" style:color={data.stats.pendingCredits ? 'var(--warn)' : undefined}
-						>{data.stats.pendingCredits}</span
-					><span class="label">Credits pending approval</span>
+					<span class="value" style:color={data.stats.pendingCredits ? 'var(--warn)' : undefined}>
+						{data.stats.pendingCredits}
+					</span><span class="label">Credits pending approval</span>
 				</div>
 				<div>
-					<span class="value">{data.stats.missingDurations}</span><span class="label"
-						>Recordings without a length</span
-					>
+					<span class="value">{data.stats.missingDurations}</span><span class="label">
+						Recordings without a length
+					</span>
 				</div>
 			</section>
 

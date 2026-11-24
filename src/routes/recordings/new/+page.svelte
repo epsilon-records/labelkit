@@ -16,8 +16,10 @@
 		<div class="btn-group">
 			<button class="btn primary" type="submit">Create recording</button><a
 				class="btn"
-				href="/recordings">Cancel</a
+				href="/recordings"
 			>
+				Cancel
+			</a>
 		</div>
 	</form>
 </div>

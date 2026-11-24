@@ -46,12 +46,12 @@
 	const owners = $derived(data.members.filter((m) => m.role === 'owner').length);
 </script>
 
-<noscript
-	><p class="soft">
+<noscript>
+	<p class="soft">
 		JavaScript is required to confirm removals. Removal requests without confirmation leave existing
 		records unchanged.
-	</p></noscript
->
+	</p>
+</noscript>
 
 <svelte:head><title>Members · {page.data.brand?.name ?? 'LabelKit'}</title></svelte:head>
 
@@ -78,8 +78,10 @@
 					<tr>
 						<td>
 							{#if m.email}<span style="font-weight: 600">{m.email}</span>{:else}<span
-									class="mono muted">{m.userId}</span
-								>{/if}
+									class="mono muted"
+								>
+									{m.userId}
+								</span>{/if}
 							{#if m.userId === data.me}<span class="muted"> · you</span>{/if}
 						</td>
 						<td>
@@ -93,11 +95,13 @@
 									disabled={lastOwner}
 									size="sm"
 								>
-									{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}>{l}</NativeSelect.Option
-										>{/each}
+									{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}>
+											{l}
+										</NativeSelect.Option>{/each}
 								</NativeSelect.Root>
-								{#if !lastOwner}<Button type="submit" variant="default" size="small">Save</Button
-									>{/if}
+								{#if !lastOwner}<Button type="submit" variant="default" size="small">
+										Save
+									</Button>{/if}
 							</form>
 						</td>
 						<td>
@@ -164,8 +168,9 @@
 						aria-invalid={inviteFailed && errors.role ? true : undefined}
 						aria-describedby={inviteFailed && errors.role ? 'role-error' : undefined}
 					>
-						{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}>{l}</NativeSelect.Option
-							>{/each}
+						{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}>
+								{l}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{#if inviteFailed && errors.role}
 						<Field.Error id="role-error">{errors.role}</Field.Error>

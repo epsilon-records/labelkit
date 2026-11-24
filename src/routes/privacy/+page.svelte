@@ -91,9 +91,9 @@
 			across customer sites. It is never loaded once you are signed in, nor on label workspaces or
 			branded domains, and it skips pages whose address or referrer has a query or fragment. We only
 			see aggregate reports. See
-			<a href="https://developers.cloudflare.com/speed/observatory/rum-beacon/"
-				>Cloudflare's explanation of its beacon</a
-			>.
+			<a href="https://developers.cloudflare.com/speed/observatory/rum-beacon/">
+				Cloudflare's explanation of its beacon
+			</a>.
 		</li>
 	</ul>
 	<p>

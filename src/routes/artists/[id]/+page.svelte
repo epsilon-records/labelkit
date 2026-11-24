@@ -74,9 +74,9 @@
 							<tr>
 								<td class="mono muted">{c.role}</td>
 								<td>
-									<a href="/recordings/{c.recordingId}" class="plain" style="font-weight: 600"
-										>{c.title}</a
-									>{#if c.versionTitle}<span class="muted"> · {c.versionTitle}</span>{/if}
+									<a href="/recordings/{c.recordingId}" class="plain" style="font-weight: 600">
+										{c.title}
+									</a>{#if c.versionTitle}<span class="muted"> · {c.versionTitle}</span>{/if}
 								</td>
 								<td class="mono soft">{c.isrc}</td>
 								<td class="mono num">{fmt(c.durationMs)}</td>

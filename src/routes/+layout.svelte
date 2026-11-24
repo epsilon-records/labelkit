@@ -118,8 +118,10 @@
 				class="menu-toggle"
 				aria-expanded={menuOpen}
 				aria-controls="topbar-tray"
-				onclick={() => (menuOpen = !menuOpen)}>{menuOpen ? 'Close' : 'Menu'}</button
+				onclick={() => (menuOpen = !menuOpen)}
 			>
+				{menuOpen ? 'Close' : 'Menu'}
+			</button>
 			<div class="tray" id="topbar-tray">
 				{#if data.membership}
 					<nav aria-label="Main">
@@ -127,8 +129,10 @@
 							<a
 								href={item.href}
 								class="plain"
-								aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a
+								aria-current={isCurrent(item.href) ? 'page' : undefined}
 							>
+								{item.label}
+							</a>
 						{/each}
 					</nav>
 				{/if}

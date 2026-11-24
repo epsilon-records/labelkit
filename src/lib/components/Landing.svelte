@@ -137,8 +137,10 @@
 				class="menu-toggle"
 				aria-expanded={menuOpen}
 				aria-controls="landing-nav"
-				onclick={() => (menuOpen = !menuOpen)}>{menuOpen ? 'Close' : 'Menu'}</button
+				onclick={() => (menuOpen = !menuOpen)}
 			>
+				{menuOpen ? 'Close' : 'Menu'}
+			</button>
 			<!-- Closes the menu after a link is followed; the links themselves handle keys. -->
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 			<nav

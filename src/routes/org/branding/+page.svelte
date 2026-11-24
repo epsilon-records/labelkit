@@ -221,9 +221,9 @@
 		{:else}
 			<form method="POST" action="?/requestDomain" class="stack">
 				<Field.Field class="max-w-[480px]">
-					<Field.Label for="domain"
-						>{data.domain.active ? 'Move to another domain' : 'Domain'}</Field.Label
-					>
+					<Field.Label for="domain">
+						{data.domain.active ? 'Move to another domain' : 'Domain'}
+					</Field.Label>
 					<Input
 						id="domain"
 						name="domain"
