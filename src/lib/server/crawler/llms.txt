@@ -1,6 +1,6 @@
 # LabelKit
 
-> LabelKit is label software for independent record labels and collectives: releases, recordings, compositions, credits and splits, agreements, artist consents (including AI use) and WAV masters, kept in one place per label. Masters are measured for loudness, key and tempo by AudioKit. It was built inside a working independent label first and is now open to other labels. Nothing in a label's catalogue is used to train AI without a consent the label recorded, per artist and per track.
+> LabelKit is API-first record-label management software for independent record labels and collectives: releases, recordings, compositions, credits and splits, agreements, artist consents (including AI use) and WAV masters, kept in one place per label. Masters are measured for loudness, key and tempo by AudioKit. It was built inside a working independent label first and is now open to other labels. Nothing in a label's catalogue is used to train AI without a consent the label recorded, per artist and per track.
 
 ## What it does today
 
@@ -13,13 +13,28 @@
 - Team roles per label, and an audit trail of every change
 - Catalogue-wide search by title, ISRC, UPC or catalogue number
 
-Coming, not available yet: delivery to Spotify, Apple Music and other stores (through a delivery partner), royalty statements and artist payouts, a white-label portal on a label's own domain, and a REST API, CLI and MCP server.
+Coming, not available yet: delivery to Spotify, Apple Music and other stores (through a delivery partner), royalty statements and artist payouts, a white-label portal on a label's own domain, creating records through the API, a CLI and an MCP server.
+
+## API
+
+LabelKit is built API-first. Its public REST API, at `https://api.labelkit.co`, is read-only for now: it reads a label's catalogue; creating records through it is coming.
+
+- Contract (OpenAPI 3.1, the source of truth): https://api.labelkit.co/v1/openapi.yaml (no key needed)
+- Sign-in: `Authorization: Bearer lk_<prefix>_<secret>`. A label owner creates keys in the app under API keys; each key sees only its own label's catalogue. Keys with the `catalog:read` scope can read.
+- Errors: `{"error": {"code": "...", "message": "..."}}`, with codes `unauthorized`, `insufficient_scope`, `invalid_request` and `not_found`.
+- Endpoints:
+  - `GET /v1/releases`: list releases
+  - `GET /v1/releases/{id}`: a release with its tracks, credits and artists
+  - `GET /v1/recordings`: list recordings
+  - `GET /v1/recordings/{id}`: a recording with its releases and credits
+
+Use only the endpoints in the contract; there are no write endpoints yet.
 
 ## Pricing
 
 - Free: €0, to try LabelKit with your own catalogue. No card needed.
 - Label: €12 a month or €120 a year, for one label and its whole catalogue.
-- Distributor & API: coming.
+- Distributor: coming.
 
 ## How it differs from DistroKid
 
@@ -30,6 +45,7 @@ DistroKid is built for artists uploading their own songs. LabelKit is built for 
 - [LabelKit](https://labelkit.co/): overview, features, pricing and questions
 - [Start free](https://labelkit.co/signup): sign up with an emailed sign-in link; no password
 - [Sign in](https://labelkit.co/login)
+- [API contract](https://api.labelkit.co/v1/openapi.yaml): the OpenAPI document for `https://api.labelkit.co`
 
 ## Optional
 
