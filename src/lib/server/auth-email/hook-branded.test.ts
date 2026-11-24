@@ -339,7 +339,7 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 			const [mail] = t.sent();
 			expect(mail.auth).toBe('Bearer fake-key-epsilon');
 			expect(mail.body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
-			expect(mail.body.subject).toBe('Your ERMS sign-in link');
+			expect(mail.body.subject).toBe('Your LabelKit sign-in link');
 			expect(t.logs.at(-1)).not.toHaveProperty('branded');
 		});
 

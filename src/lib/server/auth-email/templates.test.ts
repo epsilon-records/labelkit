@@ -93,10 +93,10 @@ describe('auth email copy', () => {
 		expect(m.html).not.toContain(c.email.site_url);
 	});
 
-	it('invite to Epsilon from Epsilon’s sender calls the app ERMS', () => {
+	it('invite to Epsilon from Epsilon’s sender calls the app LabelKit', () => {
 		const c = ctx('invite', { sender: SENDERS.epsilon });
 		c.user.user_metadata = { invited_org_name: 'Epsilon Records' };
-		expect(render(c)[0].subject).toBe("You're invited to Epsilon Records on ERMS");
+		expect(render(c)[0].subject).toBe("You're invited to Epsilon Records on LabelKit");
 	});
 
 	it('invite without an org name says "a label", as the old template did', () => {
