@@ -46,9 +46,9 @@
 				{#each group.operations as operation (operation.id)}
 					<article id={operation.id} class="operation">
 						<h3>
-							<a class="plain" href={`#${operation.id}`}
-								><span class="method">{operation.method}</span> <code>{operation.path}</code></a
-							>
+							<a class="plain" href={`#${operation.id}`}>
+								<span class="method">{operation.method}</span> <code>{operation.path}</code>
+							</a>
 						</h3>
 						<p class="summary">{operation.summary}</p>
 						{#if operation.description}<p>{operation.description}</p>{/if}
