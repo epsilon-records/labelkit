@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 
-// static/llms.txt is what AI assistants read about LabelKit. Its API section names endpoints
+// src/lib/server/crawler/llms.txt is what AI assistants read about LabelKit. Its API section names endpoints
 // agents will call, so each one must be in docs/openapi.yaml with the same method.
-const llms = readFileSync('static/llms.txt', 'utf8');
+const llms = readFileSync('src/lib/server/crawler/llms.txt', 'utf8');
 const spec = readFileSync('docs/openapi.yaml', 'utf8');
 
 /** `METHOD /path` for every operation in the spec. */
