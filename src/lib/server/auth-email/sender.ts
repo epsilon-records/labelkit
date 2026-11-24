@@ -33,7 +33,7 @@ export const SENDERS: Record<SenderId, Sender> = {
 		id: 'epsilon',
 		domain: 'auth.epsilonrecords.com',
 		from: 'Epsilon Records <no-reply@auth.epsilonrecords.com>',
-		product: 'ERMS'
+		product: 'LabelKit'
 	},
 	labelkit: {
 		id: 'labelkit',
