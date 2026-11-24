@@ -236,7 +236,7 @@
 					{#each today as item (item)}<li>{item}</li>{/each}
 				</ul>
 				<ul class="soon">
-					{#each soon as item (item)}<li>{item} <span class="tag">Soon</span></li>{/each}
+					{#each soon as item (item)}<li>{item} <span class="soon-tag">Soon</span></li>{/each}
 				</ul>
 			</div>
 		</section>
@@ -640,7 +640,8 @@
 	.soon li {
 		color: #a6abb3;
 	}
-	.tag {
+	/* Not the global .tag: that one fills with the accent, which hid this lime text. */
+	.soon-tag {
 		font-size: 11px;
 		border: 1px solid var(--line);
 		padding: 2px 6px;
