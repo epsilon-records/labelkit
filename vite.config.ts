@@ -4,7 +4,19 @@ import { sentrySvelteKit } from '@sentry/sveltekit/vite';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { playwright } from '@vitest/browser-playwright';
-import { defineConfig, type TestProjectConfiguration } from 'vitest/config';
+import { configDefaults, defineConfig, type TestProjectConfiguration } from 'vitest/config';
+
+const browser = () => ({
+	enabled: true,
+	headless: true,
+	// CI installs Playwright's Chromium; PLAYWRIGHT_CHROMIUM_PATH points at a local Chrome instead.
+	provider: playwright({
+		launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+			? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+			: {}
+	}),
+	instances: [{ browser: 'chromium' as const }]
+});
 
 const projects: TestProjectConfiguration[] = [
 	{
@@ -13,9 +25,18 @@ const projects: TestProjectConfiguration[] = [
 			name: 'unit',
 			// packages/mcp (EPSILON-138) is its own package; its unit tests run here too, so `pnpm test` covers it.
 			include: ['src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
+			exclude: [...configDefaults.exclude, 'src/**/*.browser.test.ts'],
 			environment: 'node',
 			// Builds the migrated template on the local Supabase stack that database tests copy from.
 			globalSetup: ['src/lib/server/test-db.global.ts']
+		}
+	},
+	{
+		extends: true,
+		test: {
+			name: 'component',
+			include: ['src/**/*.browser.test.ts'],
+			browser: browser()
 		}
 	},
 	{
@@ -28,17 +49,7 @@ const projects: TestProjectConfiguration[] = [
 		optimizeDeps: { include: ['bits-ui', 'tailwind-variants', 'clsx', 'tailwind-merge'] },
 		test: {
 			name: 'storybook',
-			browser: {
-				enabled: true,
-				headless: true,
-				// CI installs Playwright's Chromium; PLAYWRIGHT_CHROMIUM_PATH points at a local Chrome instead.
-				provider: playwright({
-					launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
-						? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
-						: {}
-				}),
-				instances: [{ browser: 'chromium' }]
-			},
+			browser: browser(),
 			setupFiles: ['.storybook/vitest.setup.ts']
 		}
 	}
