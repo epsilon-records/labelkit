@@ -10,9 +10,9 @@
 		<div class="table-wrap">
 			<table class="data">
 				<thead><tr><th>Title</th><th>ISRC</th></tr></thead><tbody>
-					{#each data.recordings as r (r.id)}<tr
-							><td><a href="/recordings/{r.id}">{r.title}</a></td><td class="mono">{r.isrc}</td></tr
-						>{/each}
+					{#each data.recordings as r (r.id)}<tr>
+							<td><a href="/recordings/{r.id}">{r.title}</a></td><td class="mono">{r.isrc}</td>
+						</tr>{/each}
 				</tbody>
 			</table>
 		</div>

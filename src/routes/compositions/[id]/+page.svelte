@@ -56,12 +56,12 @@
 	const linked = $derived(new Set(data.recordings.map((r) => r.id)));
 </script>
 
-<noscript
-	><p class="soft">
+<noscript>
+	<p class="soft">
 		JavaScript is required to confirm removals. Removal requests without confirmation leave existing
 		records unchanged.
-	</p></noscript
->
+	</p>
+</noscript>
 
 <svelte:head><title>{comp.title} · {page.data.brand?.name ?? 'LabelKit'}</title></svelte:head>
 
@@ -87,8 +87,9 @@
 					{#each data.recordings as r (r.id)}
 						<dt class="mono">{r.isrc}</dt>
 						<dd>
-							<a href="/recordings/{r.id}" class="plain" style="font-weight: 600">{r.title}</a
-							>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
+							<a href="/recordings/{r.id}" class="plain" style="font-weight: 600">
+								{r.title}
+							</a>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
 							{#if data.can.write}
 								<form
 									method="POST"
@@ -111,9 +112,9 @@
 					<NativeSelect.Root id="link-rec" name="recordingId" required>
 						<NativeSelect.Option value="">—</NativeSelect.Option>
 						{#each data.recordingChoices.filter((r) => !linked.has(r.id)) as r (r.id)}
-							<NativeSelect.Option value={r.id}
-								>{r.title}{r.versionTitle ? ` · ${r.versionTitle}` : ''} ({r.isrc})</NativeSelect.Option
-							>
+							<NativeSelect.Option value={r.id}>
+								{r.title}{r.versionTitle ? ` · ${r.versionTitle}` : ''} ({r.isrc})
+							</NativeSelect.Option>
 						{/each}
 					</NativeSelect.Root>
 					<div><Button type="submit" size="small">Link</Button></div>
@@ -139,9 +140,9 @@
 								required
 								{...invalid('title')}
 							/>
-							{#if saveError('title')}<Field.Error id="title-error"
-									>{saveError('title')}</Field.Error
-								>{/if}
+							{#if saveError('title')}<Field.Error id="title-error">
+									{saveError('title')}
+								</Field.Error>{/if}
 						</Field.Field>
 						<Field.Field orientation="responsive">
 							<Field.Label for="iswc">ISWC</Field.Label>
@@ -153,8 +154,9 @@
 								placeholder="T-123.456.789-0"
 								{...invalid('iswc')}
 							/>
-							{#if saveError('iswc')}<Field.Error id="iswc-error">{saveError('iswc')}</Field.Error
-								>{/if}
+							{#if saveError('iswc')}<Field.Error id="iswc-error">
+									{saveError('iswc')}
+								</Field.Error>{/if}
 						</Field.Field>
 						<!-- Lines the button up with the controls: the 140 px label column plus the 20 px gap. -->
 						<div class="sm:pl-[160px]">
@@ -221,9 +223,9 @@
 										wrapperClass="w-[260px]"
 									>
 										<NativeSelect.Option value="">—</NativeSelect.Option>
-										{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}
-												>{p.name}</NativeSelect.Option
-											>{/each}
+										{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}>
+												{p.name}
+											</NativeSelect.Option>{/each}
 									</NativeSelect.Root>
 									<label for="role_{i}" class="sr-only">Role {i + 1}</label>
 									<NativeSelect.Root
@@ -232,9 +234,9 @@
 										value={writerValue(i, 'role')}
 										wrapperClass="w-fit"
 									>
-										{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}
-												>{l}</NativeSelect.Option
-											>{/each}
+										{#each ROLES as [k, l] (k)}<NativeSelect.Option value={k}>
+												{l}
+											</NativeSelect.Option>{/each}
 									</NativeSelect.Root>
 									<label for="wshare_{i}" class="sr-only">Split {i + 1} (%)</label>
 									<Input

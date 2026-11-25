@@ -21,8 +21,10 @@
 			<div class="btn-group">
 				<button class="btn primary" type="submit">Create release</button><a
 					href="/releases"
-					class="btn">Cancel</a
+					class="btn"
 				>
+					Cancel
+				</a>
 			</div>
 		</form>
 	{/if}

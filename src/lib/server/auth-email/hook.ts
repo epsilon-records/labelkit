@@ -3,7 +3,13 @@ import { verifyHook } from './signature';
 import { chooseSender, SENDERS, type SenderId } from './sender';
 import { render, UnsupportedEmailType, type HookEmailData, type HookUser } from './templates';
 import { RESEND_TIMEOUT_MS, ResendFailed, sendWithResend } from './resend';
-import { brandedSender, redirectHost, type BrandLookup, type OrgBrand } from './branding';
+import {
+	brandedSender,
+	isLabelKitReturnAddress,
+	redirectHost,
+	type BrandLookup,
+	type OrgBrand
+} from './branding';
 import type { Sender } from './sender';
 
 /**
@@ -63,6 +69,9 @@ export const BRANDING_BUDGET_MS = 800;
  * left (a slow body read), branding is skipped: no lookup, no flag check.
  */
 export const LEGACY_RESERVE_MS = HOOK_BUDGET_MS - BRANDING_BUDGET_MS;
+
+/** What the return-address check leaves for the send itself (the Resend send, see above). */
+export const SEND_RESERVE_MS = 2200;
 
 export type HookConfig = {
 	hookSecret: string | undefined;
@@ -169,22 +178,63 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		return hookError(400, 'Send Email hook payload was not understood.');
 	}
 	const user = parsed.data.user as HookUser;
-	const email = parsed.data.email_data as HookEmailData;
-	const type = email.email_action_type;
+	const type = parsed.data.email_data.email_action_type;
 	const base = { user: user.id, action_type: type, webhook_id: verified.id };
 
 	const invited = user.user_metadata?.invited_org_id;
 	const invitedOrgId =
 		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
 
+	// Each lookup runs at most once per call, whichever step asks first.
+	const once = <A extends unknown[], R>(fn: (...a: A) => Promise<R>, key: (...a: A) => string) => {
+		const seen = new Map<string, Promise<R>>();
+		return (...a: A) => {
+			const k = key(...a);
+			if (!seen.has(k)) seen.set(k, fn(...a));
+			return seen.get(k)!;
+		};
+	};
+	const lookups: HookDeps = {
+		...deps,
+		memberOrgIds: once(deps.memberOrgIds, () => ''),
+		orgBrand: deps.orgBrand
+			? once(deps.orgBrand, (l) => ('orgId' in l ? `id:${l.orgId}` : `host:${l.host}`))
+			: undefined
+	};
+
+	// A link may carry a label's own domain as its return address only for a member of that label.
+	// An invite's link never uses it: with the inviting org known, the check is skipped and the
+	// lookups are left for branding.
+	const skipCheck = type === 'invite' && invitedOrgId !== null;
+	const checked = skipCheck
+		? { redirectTo: '', brand: null }
+		: await checkReturnAddress(
+				lookups,
+				user.id,
+				parsed.data.email_data.redirect_to,
+				() => remaining() - SEND_RESERVE_MS,
+				(l) => log({ ...base, ...l })
+			);
+	const redirectTo = checked.redirectTo;
+	const email = { ...parsed.data.email_data, redirect_to: redirectTo } as HookEmailData;
+
 	// Branding gets min(BRANDING_BUDGET_MS, what is left minus LEGACY_RESERVE_MS), or nothing.
-	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - LEGACY_RESERVE_MS);
+	// With the label already found and its membership read already failed, the old path will not
+	// look membership up again, so branding only has to leave the time for the send.
+	const reserve = checked.brand ? SEND_RESERVE_MS : LEGACY_RESERVE_MS;
+	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - reserve);
 	const brandingDeadline = clock() + brandingMs;
 	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
 	const branded =
 		brandingMs > 0
-			? await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
-					log({ ...base, ...l })
+			? await brandFor(
+					lookups,
+					type,
+					invitedOrgId,
+					email.redirect_to,
+					checked.brand,
+					brandingLeft,
+					(l) => log({ ...base, ...l })
 				)
 			: null;
 	if (branded) {
@@ -226,7 +276,7 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 
 	let memberOrgIds: string[];
 	try {
-		memberOrgIds = await withinBudget(deps.memberOrgIds(user.id), remaining());
+		memberOrgIds = await withinBudget(lookups.memberOrgIds(user.id), remaining());
 	} catch {
 		log({ ...base, level: 'error', outcome: 'lookup_failed' });
 		return hookError(500, 'Could not prepare the sign-in email. Try again shortly.');
@@ -249,6 +299,53 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 }
 
 /**
+ * The return address the link may carry. LabelKit's own hosts, and no address at all, pass as they
+ * are. Any other address must be the active domain of a label the recipient belongs to; otherwise,
+ * or when either lookup fails or runs out of budget, it is dropped and Supabase sends the person to
+ * its Site URL (labelkit.co). The email itself still goes out.
+ */
+async function checkReturnAddress(
+	deps: HookDeps,
+	userId: string,
+	redirectTo: string,
+	remaining: () => number,
+	log: (line: Record<string, unknown>) => void
+): Promise<{ redirectTo: string; brand: OrgBrand | null }> {
+	if (!redirectTo) return { redirectTo, brand: null };
+	let url: URL | null = null;
+	try {
+		url = new URL(redirectTo);
+	} catch {
+		// not a URL: dropped below
+	}
+	const drop = (reason: string, brand: OrgBrand | null = null) => {
+		log({ level: 'warn', outcome: 'return_address_dropped', reason });
+		return { redirectTo: '', brand };
+	};
+	if (!url || url.username || url.password) return drop('not_a_label_host');
+	if (isLabelKitReturnAddress(redirectTo)) return { redirectTo, brand: null };
+	const host = redirectHost(redirectTo);
+	if (!host) return drop('not_a_label_host');
+	if (!deps.orgBrand) return drop('no_lookup');
+	const allowance = remaining();
+	if (allowance <= 0) return drop('lookup_failed');
+	// Settled separately: one failing must not leave the other unhandled, and a failed membership
+	// read still lets the label's own branding through as before (the link just loses its address).
+	const [found, member] = await Promise.allSettled([
+		withinBudget(deps.orgBrand({ host }), allowance),
+		withinBudget(deps.memberOrgIds(userId), allowance)
+	]);
+	if (found.status === 'rejected') return drop('lookup_failed');
+	const brand = found.value;
+	if (!brand) return drop('unknown_host');
+	if (member.status === 'rejected') return drop('lookup_failed', brand);
+	const label = brand.orgId.toLowerCase();
+	return member.value.some((id) => id.toLowerCase() === label)
+		? { redirectTo, brand: null }
+		: drop('not_a_member');
+}
+
+/**
  * The org this email is branded for, with its sender, or null to keep the EPSILON-147 path. Null
  * whenever anything is missing or fails: no lookup or flag wired, no org to look for, no org found,
  * a failed lookup, the flag off, or a failed flag check. So the flag off (or PostHog keys unset)
@@ -259,24 +356,29 @@ async function brandFor(
 	type: string,
 	invitedOrgId: string | null,
 	redirectTo: string,
+	hostBrand: OrgBrand | null,
 	remaining: () => number,
 	log: (line: Record<string, unknown>) => void
 ): Promise<{ brand: OrgBrand; chosen: ReturnType<typeof brandedSender> } | null> {
 	if (!deps.orgBrand || !deps.brandingEnabled) return null;
 	let lookup: BrandLookup | null = null;
+	// An invite names its org; every other type (and an invite without one) goes by the host of
+	// the return address that passed the check, or by the label found while it ran.
 	if (type === 'invite' && invitedOrgId) lookup = { orgId: invitedOrgId };
-	else {
+	else if (!hostBrand) {
 		const host = redirectHost(redirectTo);
 		if (host) lookup = { host };
 	}
-	if (!lookup) return null;
-	let brand: OrgBrand | null;
-	try {
-		brand = await withinBudget(deps.orgBrand(lookup), remaining());
-	} catch {
-		// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
-		log({ level: 'error', outcome: 'brand_lookup_failed' });
-		return null;
+	if (!lookup && !hostBrand) return null;
+	let brand: OrgBrand | null = hostBrand;
+	if (lookup) {
+		try {
+			brand = await withinBudget(deps.orgBrand(lookup), remaining());
+		} catch {
+			// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
+			log({ level: 'error', outcome: 'brand_lookup_failed' });
+			return null;
+		}
 	}
 	if (!brand) return null;
 	let on: boolean;

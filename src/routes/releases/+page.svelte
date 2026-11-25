@@ -54,8 +54,10 @@
 								<a
 									href="/releases/{r.id}"
 									class="plain"
-									style="font-weight: 600; color: var(--text-strong)">{r.title}</a
-								>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
+									style="font-weight: 600; color: var(--text-strong)"
+								>
+									{r.title}
+								</a>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
 							</td>
 							<td>
 								{#each r.artists as a, i (a.id)}{#if i},

@@ -67,11 +67,11 @@
 		<div class="table-wrap">
 			<table class="data" style="min-width: 820px">
 				<thead>
-					<tr
-						><th>Signed</th><th>Title</th><th>Counterparty</th><th>Kind</th><th>Term</th><th
-							>Territory</th
-						><th>Status</th><th>Label</th></tr
-					>
+					<tr>
+						<th>Signed</th><th>Title</th><th>Counterparty</th><th>Kind</th><th>Term</th><th>
+							Territory
+						</th><th>Status</th><th>Label</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each data.agreements as a (a.id)}
@@ -116,9 +116,9 @@
 						{...invalid('counterpartyId')}
 					>
 						<NativeSelect.Option value="">—</NativeSelect.Option>
-						{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}
-								>{p.name}</NativeSelect.Option
-							>{/each}
+						{#each data.options.parties as p (p.id)}<NativeSelect.Option value={p.id}>
+								{p.name}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{@render fieldErrorFor('counterpartyId')}
 				</Field.Field>
@@ -131,9 +131,9 @@
 						required
 						{...invalid('labelId')}
 					>
-						{#each data.options.labels as l (l.id)}<NativeSelect.Option value={l.id}
-								>{l.name}</NativeSelect.Option
-							>{/each}
+						{#each data.options.labels as l (l.id)}<NativeSelect.Option value={l.id}>
+								{l.name}
+							</NativeSelect.Option>{/each}
 					</NativeSelect.Root>
 					{@render fieldErrorFor('labelId')}
 				</Field.Field>

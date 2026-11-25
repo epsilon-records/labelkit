@@ -6,7 +6,8 @@ const pages = [
 	{ path: '/login', heading: 'Log in' },
 	{ path: '/signup', heading: 'Create an account' },
 	{ path: '/terms', heading: 'Terms of service' },
-	{ path: '/privacy', heading: 'Privacy notice' }
+	{ path: '/privacy', heading: 'Privacy notice' },
+	{ path: '/docs', heading: 'API reference' }
 ];
 
 for (const { path, heading } of pages) {

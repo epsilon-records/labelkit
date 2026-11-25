@@ -74,8 +74,10 @@
 								<a
 									href="/compositions/{c.id}"
 									class="plain"
-									style="font-weight: 600; color: var(--text-strong)">{c.title}</a
+									style="font-weight: 600; color: var(--text-strong)"
 								>
+									{c.title}
+								</a>
 							</td>
 							<td class="mono muted">{c.iswc ?? '—'}</td>
 							<td>{c.writers ?? '—'}</td>

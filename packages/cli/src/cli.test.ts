@@ -122,3 +122,74 @@ it.each(['http://127.0.0.1:4173', 'http://api.labelkit.test'])(
 		expect(io.err).toHaveBeenCalledExactlyOnceWith('Error: The LabelKit CLI requires HTTPS.');
 	}
 );
+
+it('sends each create body and its idempotency key to the documented endpoint', async () => {
+	const dir = await mkdtemp(join(tmpdir(), 'labelkit-cli-create-'));
+	try {
+		const file = join(dir, 'body.json');
+		const cases = [
+			{
+				args: ['release', 'create'],
+				path: '/v1/releases',
+				body: { title: 'Test', upc: '012345678905', label_id: id }
+			},
+			{
+				args: ['recording', 'create'],
+				path: '/v1/recordings',
+				body: { title: 'Test', isrc: 'ZZTST2600001' }
+			},
+			{ args: ['artist', 'create'], path: '/v1/artists', body: { display_name: 'Test Artist' } },
+			{
+				args: ['track', 'add', id],
+				path: '/v1/releases/' + id + '/tracks',
+				body: { mode: 'existing', recording_id: id, disc: 1, position: 1 }
+			}
+		];
+		for (const { args, path, body } of cases) {
+			await writeFile(file, JSON.stringify(body));
+			const io = mock({ id }, 201);
+			expect(
+				await run([...args, '--file', file, '--idempotency-key', 'retry-1', '--json'], io)
+			).toBe(0);
+			expect(io.fetch).toHaveBeenCalledExactlyOnceWith(
+				new URL('https://api.labelkit.test' + path),
+				expect.objectContaining({
+					method: 'POST',
+					body: JSON.stringify(body),
+					headers: expect.objectContaining({
+						'Content-Type': 'application/json',
+						'Idempotency-Key': 'retry-1',
+						Authorization: 'Bearer ' + key
+					})
+				})
+			);
+			expect(io.out).toHaveBeenCalledExactlyOnceWith(JSON.stringify({ id }, null, 2));
+		}
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+it('rejects invalid create arguments and handles a conflict without a retry', async () => {
+	const dir = await mkdtemp(join(tmpdir(), 'labelkit-cli-create-'));
+	try {
+		const file = join(dir, 'body.json');
+		await writeFile(file, '[]');
+		const io = mock({ error: { code: 'conflict', message: 'Request conflicts.' } }, 409);
+		expect(await run(['recording', 'create'], io)).toBe(2);
+		expect(
+			await run(['recording', 'create', '--file', file, '--idempotency-key', 'not valid'], io)
+		).toBe(2);
+		expect(await run(['track', 'add', 'not-a-uuid', '--file', file], io)).toBe(2);
+		expect(await run(['recording', 'create', '--file', file], io)).toBe(2);
+		expect(io.fetch).not.toHaveBeenCalled();
+		await writeFile(file, '{"title":"Test","isrc":"ZZTST2600001"}');
+		expect(await run(['recording', 'create', '--file', file], io)).toBe(1);
+		expect(io.fetch).toHaveBeenCalledTimes(1);
+		expect(io.fetch.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Idempotency-Key');
+		expect(io.err).toHaveBeenLastCalledWith('Error: HTTP 409 (conflict): Request conflicts.');
+		expect(io.out).not.toHaveBeenCalled();
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});

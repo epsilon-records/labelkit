@@ -25,6 +25,8 @@
 {#if collector}<AppMetrics {collector} />{/if}
 <a id="home" href="/">Home</a><a
 	id="entity"
-	href="/releases/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa?token=FAKE_METRIC_SECRET">Entity</a
+	href="/releases/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa?token=FAKE_METRIC_SECRET"
 >
+	Entity
+</a>
 {@render children()}

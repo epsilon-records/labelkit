@@ -147,16 +147,17 @@
 					<tr>
 						<td>{m.fileName} <span class="muted mono">{m.format.toUpperCase()}</span></td>
 						<td class="num mono">{size(m.sizeBytes)}</td>
-						<td class="mono" title={m.sha256 ?? ''}
-							>{m.sha256 ? `${m.sha256.slice(0, 12)}…` : '—'}</td
-						>
+						<td class="mono" title={m.sha256 ?? ''}>
+							{m.sha256 ? `${m.sha256.slice(0, 12)}…` : '—'}
+						</td>
 						<td>
 							{#if m.status === 'ready'}<span class="tag">Ready</span>
 							{:else if m.status === 'verifying'}<span
 									class="tag outline"
 									title="Uploaded. LabelKit is checking the file before it can be used."
-									>Checking</span
 								>
+									Checking
+								</span>
 							{:else}<span class="tag outline">{m.status}</span>{/if}
 						</td>
 						{#if canDelete}
@@ -169,13 +170,13 @@
 										tabindex="-1"
 										use:focusOnMount
 									>
-										<span id="confirm-{m.id}" class="confirm-text"
-											>Delete {m.fileName}? The file and its record are removed for good.</span
-										>
+										<span id="confirm-{m.id}" class="confirm-text">
+											Delete {m.fileName}? The file and its record are removed for good.
+										</span>
 										<span class="inline-form">
-											<Button variant="danger" size="small" onclick={() => remove(m)}
-												>Delete master</Button
-											>
+											<Button variant="danger" size="small" onclick={() => remove(m)}>
+												Delete master
+											</Button>
 											<Button size="small" onclick={() => (confirming = null)}>Keep</Button>
 										</span>
 									</div>
@@ -213,9 +214,9 @@
 				disabled={busy}
 				class="w-auto flex-[1_1_220px]"
 			/>
-			<Button type="submit" variant="primary" size="small" disabled={!file || busy}
-				>Upload master</Button
-			>
+			<Button type="submit" variant="primary" size="small" disabled={!file || busy}>
+				Upload master
+			</Button>
 			{#if busy}
 				<Button size="small" onclick={() => controller?.abort()}>Cancel</Button>
 			{/if}

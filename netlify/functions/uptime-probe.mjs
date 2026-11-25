@@ -11,7 +11,7 @@
  * - Timeout: 10 s per endpoint, also the monitor's. Probes run in parallel, so a run takes at
  *   most ~10 s, inside Netlify's 30 s limit for scheduled functions.
  * - Redirects are followed (fetch's default, up to 20 hops) and only the final answer counts.
- *   console.audiokit.ai/ answers 303 → /login; what matters is that the login page a person lands
+ *   If an endpoint answers with a redirect, what matters is that the page a person lands
  *   on serves a 2xx. A redirect into a dead page is caught; a bare 3xx is not mistaken for "down".
  * - Grouping: each event carries the fingerprint ['uptime-probe', <endpoint>], so a long outage
  *   is one Sentry issue per endpoint (its event count grows every 5 minutes), not hundreds of
@@ -41,7 +41,6 @@ export const SEND_TIMEOUT_MS = 5000;
 
 export const ENDPOINTS = [
 	'https://billing.audiokit.ai/ready',
-	'https://console.audiokit.ai',
 	'https://audiokit.ai',
 	'https://labelkit.co/login',
 	'https://erms.epsilonrecords.com/login'

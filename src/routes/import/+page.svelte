@@ -79,9 +79,9 @@
 			</div>
 			<div class="stats">
 				<div>
-					<span class="value">{s.rows}</span><span class="label"
-						>{form.format === 'ern' ? 'Messages' : 'Rows'}</span
-					>
+					<span class="value">{s.rows}</span><span class="label">
+						{form.format === 'ern' ? 'Messages' : 'Rows'}
+					</span>
 				</div>
 				<div><span class="value">{s.releases}</span><span class="label">Releases</span></div>
 				<div><span class="value">{s.recordings}</span><span class="label">Recordings</span></div>
@@ -92,9 +92,9 @@
 					<span class="label">Errors</span>
 				</div>
 				<div>
-					<span class="value" style:color={s.warnings ? 'var(--warn)' : undefined}
-						>{s.warnings}</span
-					>
+					<span class="value" style:color={s.warnings ? 'var(--warn)' : undefined}>
+						{s.warnings}
+					</span>
 					<span class="label">Warnings</span>
 				</div>
 			</div>
@@ -109,11 +109,11 @@
 				<div class="table-wrap">
 					<table class="data" style="min-width: 420px">
 						<thead>
-							<tr
-								><th></th><th class="num">Create</th><th class="num">Update</th><th class="num"
-									>Same</th
-								></tr
-							>
+							<tr>
+								<th></th><th class="num">Create</th><th class="num">Update</th><th class="num">
+									Same
+								</th>
+							</tr>
 						</thead>
 						<tbody>
 							{#each kinds as k (k)}

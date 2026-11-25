@@ -150,9 +150,9 @@
 							<span class="label">True peak</span>
 						</div>
 						<div class="figure">
-							<span class="value"
-								>{num(rec(card.result).loudness_range_lu)?.toFixed(1) ?? '—'} LU</span
-							>
+							<span class="value">
+								{num(rec(card.result).loudness_range_lu)?.toFixed(1) ?? '—'} LU
+							</span>
 							<span class="label">Range</span>
 						</div>
 					</div>

@@ -36,8 +36,10 @@
 		stroke="currentColor"
 		stroke-width="2.25"
 		stroke-linecap="square"
-		aria-hidden="true"><path d="M3 8.5l3.25 3.25L13 5" /></svg
+		aria-hidden="true"
 	>
+		<path d="M3 8.5l3.25 3.25L13 5" />
+	</svg>
 	<svg
 		class="pointer-events-none col-start-1 row-start-1 hidden size-3.5 place-self-center text-primary-foreground peer-indeterminate:block"
 		viewBox="0 0 16 16"
@@ -45,6 +47,8 @@
 		stroke="currentColor"
 		stroke-width="2.25"
 		stroke-linecap="square"
-		aria-hidden="true"><path d="M3.5 8h9" /></svg
+		aria-hidden="true"
 	>
+		<path d="M3.5 8h9" />
+	</svg>
 </span>
