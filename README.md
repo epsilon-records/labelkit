@@ -267,6 +267,11 @@ Decision 0027 (EPSILON-147): Epsilon's staff get sign-in and invite email from
 switched on in Supabase, every auth email still goes over SMTP from `auth.labelkit.co`, and the
 route is unused.
 
+**Return address.** A sign-in link carries its return address (`redirect_to`) only when that is on
+LabelKit itself, or a label's own domain and the recipient is a member of that label. Otherwise the
+link is sent without it and lands on labelkit.co. Any lookup failure does the same; the email still
+goes out.
+
 **Why an endpoint in this app** rather than an Edge Function or a Postgres hook: the repo has no
 Edge Functions (`[edge_runtime]` is off) and its other machine callers (the AudioKit webhooks) are
 SvelteKit routes that verify a signature, with secrets in Netlify; a Postgres hook cannot call
