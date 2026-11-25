@@ -400,6 +400,17 @@ the next email follows the rules above, no deploy needed. To stop the hook altog
 goes back to its SMTP sender, `auth.labelkit.co`, at once; nothing in the app needs to change and no
 deploy is needed. The Netlify variables can stay.
 
+## Catalogue import
+
+At `/import`, run a dry run with one UTF-8 DDEX ERN 4.3 XML message or a ZIP containing XML messages.
+Uploads are limited to 4 MB and extracted XML to 5 MB. The dry run shows the changes and reports
+unsupported metadata and rights fields before you select the same file again to confirm.
+
+LabelKit matches releases by UPC/EAN and recordings by ISRC. It adds track placements by disc and
+position. If a position already holds another recording, the batch is blocked and rolled back.
+Rights controllers, territories, ownership shares and deal terms appear in the report and create no
+rights rows. The existing SymphonicMS CSV importer remains available under the legacy option.
+
 ## Public API (`/v1`)
 
 Owners create API keys on `/org/api-keys` (EPSILON-137, migration 0026). A key is

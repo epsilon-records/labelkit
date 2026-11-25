@@ -7,10 +7,14 @@ import {
 	orgs,
 	recordings,
 	releases,
-	releaseTracks
+	releaseTracks,
+	rightsShares
 } from '../db/schema';
 import { createTestDb } from '../test-db';
-import { applyImport } from './apply';
+import { applyImport, ImportTrackConflict } from './apply';
+import { generateErn } from '../ddex/ern';
+import { completeErnFixture, testContext } from '../ddex/ern.fixture';
+import { parseErnDocuments } from './ern';
 import { parseSymphonicInventory } from './symphonic';
 
 const SAMPLE = readFileSync(
@@ -46,6 +50,39 @@ describe('applyImport', () => {
 		expect(result.counts.releases.created).toBe(10);
 		expect(await db.select().from(releases)).toHaveLength(0);
 		expect(await db.select().from(auditLog)).toHaveLength(0);
+	});
+
+	it('previews and applies ERN without writing rights or replacing existing tracks', async () => {
+		const snapshot = completeErnFixture();
+		snapshot.release.upc = '012345678905';
+		snapshot.tracks.push({ ...snapshot.tracks[0], disc: 2 });
+		const generated = generateErn(snapshot, testContext);
+		expect(generated.findings).toEqual([]);
+		const text = generated.xml!.replace(
+			'</SoundRecording>',
+			'<ResourceRightsController><RightSharePercentage>25</RightSharePercentage></ResourceRightsController></SoundRecording>'
+		);
+		const docs = [{ name: 'fixture.xml', text }];
+		const plan = parseErnDocuments(docs);
+		const ern = { ...ctx(true), source: 'ddex-ern' as const, fileName: 'fixture.xml' };
+
+		expect((await applyImport(db, plan, ern)).counts.tracks.created).toBe(2);
+		expect(await db.select().from(releases)).toHaveLength(0);
+		expect(await db.select().from(rightsShares)).toHaveLength(0);
+		await applyImport(db, plan, { ...ern, dryRun: false });
+		expect(await db.select().from(rightsShares)).toHaveLength(0);
+		expect(await db.select().from(releaseTracks)).toHaveLength(2);
+		expect(await db.select().from(importRuns)).toMatchObject([{ source: 'ddex-ern' }]);
+
+		const conflict = parseErnDocuments([
+			{ ...docs[0], text: text.replace('ZZTST2600001', 'ZZTST2600002') }
+		]);
+		await expect(applyImport(db, conflict, { ...ern, dryRun: false })).rejects.toBeInstanceOf(
+			ImportTrackConflict
+		);
+		expect(await db.select().from(releaseTracks)).toHaveLength(2);
+		expect(await db.select().from(recordings)).toHaveLength(1);
+		expect(await db.select().from(rightsShares)).toHaveLength(0);
 	});
 
 	it('imports the catalog with an audit trail', async () => {

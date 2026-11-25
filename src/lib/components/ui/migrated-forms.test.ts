@@ -112,15 +112,18 @@ describe('signup forms', () => {
 });
 
 describe('import form', () => {
-	it('posts the CSV from a labelled file input to the preview action', () => {
+	it.each([
+		['file', '.xml,.zip,application/xml,text/xml,application/zip'],
+		['legacy-file', '.csv,text/csv']
+	])('posts the labelled %s upload to the preview action', (id, accept) => {
 		const body = html(ImportPage, { data: { runs: [] }, form: null });
 		expect(body).toContain('action="?/preview"');
 		expect(body).toContain('enctype="multipart/form-data"');
-		expect(body).toMatch(/<label[^>]*for="file"/);
-		const input = tagWithId(body, 'file');
+		expect(body).toContain('for="' + id + '"');
+		const input = tagWithId(body, id);
 		expect(input).toContain('type="file"');
 		expect(input).toContain('name="file"');
-		expect(input).toContain('accept=".csv,text/csv"');
+		expect(input).toContain('accept="' + accept + '"');
 		expect(input).toContain('required');
 		expect(input).toContain('data-slot="input"');
 		expectSubmitButtons(body);

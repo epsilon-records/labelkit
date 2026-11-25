@@ -22,6 +22,8 @@ export type ApplyResult = {
 	>;
 };
 
+export class ImportTrackConflict extends Error {}
+
 class DryRunRollback extends Error {
 	constructor(readonly result: ApplyResult) {
 		super('dry run');
@@ -45,12 +47,20 @@ const zero = () => ({ created: 0, updated: 0, unchanged: 0 });
 export async function applyImport(
 	db: Database,
 	plan: ImportPlan,
-	ctx: { orgId: string; actor: Actor; fileName: string; fileSha256: string; dryRun: boolean }
+	ctx: {
+		orgId: string;
+		actor: Actor;
+		fileName: string;
+		fileSha256: string;
+		dryRun: boolean;
+		source?: 'ddex-ern';
+	}
 ): Promise<ApplyResult> {
 	if (plan.issues.some((i) => i.level === 'error')) {
 		throw new Error('applyImport: the plan has errors; fix the file first');
 	}
 	const { orgId } = ctx;
+	const source = ctx.source ?? 'symphonicms';
 	const counts: ApplyResult['counts'] = {
 		labels: zero(),
 		parties: zero(),
@@ -228,8 +238,10 @@ export async function applyImport(
 				? await tx.select().from(releaseTracks).where(inArray(releaseTracks.releaseId, releaseIds))
 				: [];
 			const tracksByRelease = new Map<string, string>();
-			for (const t of existingTracks.sort((a, b) => a.position - b.position)) {
+			const positionByRelease = new Map<string, string>();
+			for (const t of existingTracks.sort((a, b) => a.disc - b.disc || a.position - b.position)) {
 				const prev = tracksByRelease.get(t.releaseId) ?? '';
+				positionByRelease.set([t.releaseId, t.disc, t.position].join(':'), t.recordingId);
 				tracksByRelease.set(t.releaseId, `${prev}${t.disc}:${t.position}:${t.recordingId};`);
 			}
 			const toReplace: string[] = [];
@@ -240,9 +252,40 @@ export async function applyImport(
 					orgId,
 					releaseId: id,
 					recordingId: recId.get(t.isrc)!,
-					disc: 1,
+					disc: t.disc ?? 1,
 					position: t.position
 				}));
+				if (source === 'ddex-ern') {
+					const additions = desired.filter((track) => {
+						const position = [id, track.disc, track.position].join(':');
+						const existing = positionByRelease.get(position);
+						if (existing === undefined) return true;
+						if (existing !== track.recordingId) {
+							throw new ImportTrackConflict(
+								'Existing track differs at disc ' +
+									track.disc +
+									', position ' +
+									track.position +
+									' for UPC/EAN ' +
+									r.upc +
+									'.'
+							);
+						}
+						return false;
+					});
+					counts.tracks.unchanged += desired.length - additions.length;
+					counts.tracks.created += additions.length;
+					trackRows.push(...additions);
+					if (additions.length) {
+						entries.push({
+							entity: 'release',
+							entityId: id,
+							action: 'import.tracklist_add',
+							after: additions
+						});
+					}
+					continue;
+				}
 				const sig = desired.map((t) => `${t.disc}:${t.position}:${t.recordingId};`).join('');
 				const current = tracksByRelease.get(id);
 				if (current === sig) {
@@ -277,7 +320,7 @@ export async function applyImport(
 			);
 			const newCredits = [];
 			const approved = {
-				source: 'symphonicms',
+				source,
 				approvedAt: now,
 				approvedBy: `import:${ctx.actor.id}`
 			};
@@ -305,9 +348,16 @@ export async function applyImport(
 			}
 			for (const r of plan.releases.values()) {
 				const releaseId = relId.get(r.upc)!;
-				r.artists.forEach((name, position) => {
+				const releaseCredits =
+					r.releaseCredits ??
+					r.artists.map((name, position) => ({
+						name,
+						role: 'main' as const,
+						position
+					}));
+				releaseCredits.forEach(({ name, role, position }) => {
 					const partyIdValue = pid(name);
-					const key = `|${releaseId}|${partyIdValue}|main`;
+					const key = `|${releaseId}|${partyIdValue}|${role}`;
 					if (creditKeys.has(key)) {
 						counts.credits.unchanged++;
 						return;
@@ -319,7 +369,7 @@ export async function applyImport(
 						recordingId: null,
 						releaseId,
 						partyId: partyIdValue,
-						role: 'main' as const,
+						role,
 						position,
 						...approved
 					});
@@ -337,7 +387,7 @@ export async function applyImport(
 			await tx.insert(importRuns).values({
 				id: importRunId,
 				orgId,
-				source: 'symphonicms',
+				source,
 				fileName: ctx.fileName,
 				fileSha256: ctx.fileSha256,
 				actorId: ctx.actor.id,
