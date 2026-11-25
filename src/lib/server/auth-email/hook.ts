@@ -181,6 +181,10 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const type = parsed.data.email_data.email_action_type;
 	const base = { user: user.id, action_type: type, webhook_id: verified.id };
 
+	const invited = user.user_metadata?.invited_org_id;
+	const invitedOrgId =
+		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
+
 	// Each lookup runs at most once per call, whichever step asks first.
 	const once = <A extends unknown[], R>(fn: (...a: A) => Promise<R>, key: (...a: A) => string) => {
 		const seen = new Map<string, Promise<R>>();
@@ -199,18 +203,20 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	};
 
 	// A link may carry a label's own domain as its return address only for a member of that label.
-	const redirectTo = await checkReturnAddress(
-		lookups,
-		user.id,
-		parsed.data.email_data.redirect_to,
-		() => remaining() - SEND_RESERVE_MS,
-		(l) => log({ ...base, ...l })
-	);
+	// An invite's link never uses it: with the inviting org known, the check is skipped and the
+	// lookups are left for branding.
+	const skipCheck = type === 'invite' && invitedOrgId !== null;
+	const checked = skipCheck
+		? { redirectTo: '', brand: null }
+		: await checkReturnAddress(
+				lookups,
+				user.id,
+				parsed.data.email_data.redirect_to,
+				() => remaining() - SEND_RESERVE_MS,
+				(l) => log({ ...base, ...l })
+			);
+	const redirectTo = checked.redirectTo;
 	const email = { ...parsed.data.email_data, redirect_to: redirectTo } as HookEmailData;
-
-	const invited = user.user_metadata?.invited_org_id;
-	const invitedOrgId =
-		typeof invited === 'string' && Uuid.safeParse(invited).success ? invited : null;
 
 	// Branding gets min(BRANDING_BUDGET_MS, what is left minus LEGACY_RESERVE_MS), or nothing.
 	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - LEGACY_RESERVE_MS);
@@ -218,8 +224,14 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
 	const branded =
 		brandingMs > 0
-			? await brandFor(lookups, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
-					log({ ...base, ...l })
+			? await brandFor(
+					lookups,
+					type,
+					invitedOrgId,
+					email.redirect_to,
+					checked.brand,
+					brandingLeft,
+					(l) => log({ ...base, ...l })
 				)
 			: null;
 	if (branded) {
@@ -295,26 +307,39 @@ async function checkReturnAddress(
 	redirectTo: string,
 	remaining: () => number,
 	log: (line: Record<string, unknown>) => void
-): Promise<string> {
-	if (!redirectTo || isLabelKitReturnAddress(redirectTo)) return redirectTo;
-	const drop = (reason: string) => {
+): Promise<{ redirectTo: string; brand: OrgBrand | null }> {
+	if (!redirectTo) return { redirectTo, brand: null };
+	let url: URL | null = null;
+	try {
+		url = new URL(redirectTo);
+	} catch {
+		// not a URL: dropped below
+	}
+	const drop = (reason: string, brand: OrgBrand | null = null) => {
 		log({ level: 'warn', outcome: 'return_address_dropped', reason });
-		return '';
+		return { redirectTo: '', brand };
 	};
+	if (!url || url.username || url.password) return drop('not_a_label_host');
+	if (isLabelKitReturnAddress(redirectTo)) return { redirectTo, brand: null };
 	const host = redirectHost(redirectTo);
 	if (!host) return drop('not_a_label_host');
 	if (!deps.orgBrand) return drop('no_lookup');
-	try {
-		const [brand, members] = await withinBudget(
-			Promise.all([deps.orgBrand({ host }), deps.memberOrgIds(userId)]),
-			remaining()
-		);
-		if (!brand) return drop('unknown_host');
-		const label = brand.orgId.toLowerCase();
-		return members.some((id) => id.toLowerCase() === label) ? redirectTo : drop('not_a_member');
-	} catch {
-		return drop('lookup_failed');
-	}
+	const allowance = remaining();
+	if (allowance <= 0) return drop('lookup_failed');
+	// Settled separately: one failing must not leave the other unhandled, and a failed membership
+	// read still lets the label's own branding through as before (the link just loses its address).
+	const [found, member] = await Promise.allSettled([
+		withinBudget(deps.orgBrand({ host }), allowance),
+		withinBudget(deps.memberOrgIds(userId), allowance)
+	]);
+	if (found.status === 'rejected') return drop('lookup_failed');
+	const brand = found.value;
+	if (!brand) return drop('unknown_host');
+	if (member.status === 'rejected') return drop('lookup_failed', brand);
+	const label = brand.orgId.toLowerCase();
+	return member.value.some((id) => id.toLowerCase() === label)
+		? { redirectTo, brand: null }
+		: drop('not_a_member');
 }
 
 /**
@@ -328,24 +353,29 @@ async function brandFor(
 	type: string,
 	invitedOrgId: string | null,
 	redirectTo: string,
+	hostBrand: OrgBrand | null,
 	remaining: () => number,
 	log: (line: Record<string, unknown>) => void
 ): Promise<{ brand: OrgBrand; chosen: ReturnType<typeof brandedSender> } | null> {
 	if (!deps.orgBrand || !deps.brandingEnabled) return null;
 	let lookup: BrandLookup | null = null;
+	// An invite names its org; every other type (and an invite without one) goes by the host of
+	// the return address that passed the check, or by the label found while it ran.
 	if (type === 'invite' && invitedOrgId) lookup = { orgId: invitedOrgId };
-	else {
+	else if (!hostBrand) {
 		const host = redirectHost(redirectTo);
 		if (host) lookup = { host };
 	}
-	if (!lookup) return null;
-	let brand: OrgBrand | null;
-	try {
-		brand = await withinBudget(deps.orgBrand(lookup), remaining());
-	} catch {
-		// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
-		log({ level: 'error', outcome: 'brand_lookup_failed' });
-		return null;
+	if (!lookup && !hostBrand) return null;
+	let brand: OrgBrand | null = hostBrand;
+	if (lookup) {
+		try {
+			brand = await withinBudget(deps.orgBrand(lookup), remaining());
+		} catch {
+			// Includes running out of its budget: the old path still has LEGACY_RESERVE_MS.
+			log({ level: 'error', outcome: 'brand_lookup_failed' });
+			return null;
+		}
 	}
 	if (!brand) return null;
 	let on: boolean;

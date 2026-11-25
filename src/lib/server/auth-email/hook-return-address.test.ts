@@ -235,22 +235,61 @@ describe('a label domain as the return address', () => {
 		}
 	});
 
-	it('fails closed on the link, not on the email: lookup failures send the plain link', async () => {
+	it('a return address with credentials is dropped, for LabelKit hosts and label domains alike', async () => {
+		for (const back of [
+			`https://user:pw@${HOST_B}/auth/callback`,
+			`https://user@${HOST_B}/auth/callback`,
+			'https://user:pw@labelkit.co/auth/callback'
+		]) {
+			const t = setup({ members: [LABEL_B], hosts: { [HOST_B]: B } });
+			expect((await t.run(payload('magiclink', back))).status).toBe(200);
+			expect(links(t.mails()[0].text)[0].searchParams.has('redirect_to')).toBe(false);
+		}
+	});
+
+	it('lookups that fail send the plain link, and the email still goes out', async () => {
 		const failing: Opts[] = [
-			{ members: new Error('db down'), hosts: { [HOST_B]: B } },
+			{ members: new Error('db down'), hosts: { [HOST_B]: B }, flagOn: [LABEL_B] },
 			{ members: [LABEL_B], hosts: { [HOST_B]: B }, lookupFails: true },
 			{ members: [LABEL_B], unwired: true }
 		];
 		for (const o of failing) {
 			const t = setup(o);
-			// The legacy path needs the membership lookup too; with it down the hook answers 500.
 			const res = await t.run(payload('magiclink', BACK_B));
-			if (res.status === 200) {
-				expect(links(t.mails()[0].text)[0].searchParams.has('redirect_to')).toBe(false);
-			} else {
-				expect(t.fetcher).not.toHaveBeenCalled();
-			}
+			expect(res.status).toBe(200);
+			expect(t.mails()).toHaveLength(1);
+			expect(links(t.mails()[0].text)[0].searchParams.has('redirect_to')).toBe(false);
 		}
+	});
+
+	it('a failed membership lookup with no branding to fall back on stays fail-closed, as before', async () => {
+		const t = setup({ members: new Error('db down'), hosts: { [HOST_B]: B } });
+		expect((await t.run(payload('magiclink', BACK_B))).status).toBe(500);
+		expect(t.fetcher).not.toHaveBeenCalled();
+	});
+
+	it('no time left for the lookups: nothing is started, the plain link goes out', async () => {
+		let clock = NOW;
+		const t = setup({ members: [LABEL_B], hosts: { [HOST_B]: B } });
+		const req = signed(payload('magiclink', BACK_B));
+		const text = req.text.bind(req);
+		req.text = async () => {
+			const body = await text();
+			clock += 1900; // leaves less than the send reserve
+			return body;
+		};
+		const res = await handleSendEmailHook(req, {
+			config: CONFIG,
+			memberOrgIds: t.memberOrgIds,
+			orgBrand: t.orgBrand,
+			brandingEnabled: async () => false,
+			fetcher: t.fetcher as unknown as typeof fetch,
+			now: () => clock,
+			log: () => {}
+		});
+		expect(res.status).toBe(200);
+		expect(t.orgBrand).not.toHaveBeenCalled();
+		expect(links(t.mails()[0].text)[0].searchParams.has('redirect_to')).toBe(false);
 	});
 
 	it('the person is not branded as that label when the return address is dropped', async () => {
@@ -290,6 +329,13 @@ describe("LabelKit's own hosts as the return address", () => {
 });
 
 describe('an invite', () => {
+	it('with the inviting org known, does not spend lookups on the return address', async () => {
+		const t = setup({ members: [], hosts: { [HOST_B]: B } });
+		await t.run(payload('invite', BACK_B, { invited_org_id: LABEL_B }));
+		expect(t.orgBrand).not.toHaveBeenCalledWith({ host: HOST_B });
+		expect(t.memberOrgIds).toHaveBeenCalledTimes(1); // the sender choice only
+	});
+
 	it('is unchanged when its return address is a label domain: same link, same sender', async () => {
 		const meta = { invited_org_id: LABEL_B, invited_org_name: 'Label B' };
 		const t = setup({ members: [], hosts: { [HOST_B]: B } });
