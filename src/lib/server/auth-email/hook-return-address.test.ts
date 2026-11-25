@@ -268,6 +268,40 @@ describe('a label domain as the return address', () => {
 		expect(t.fetcher).not.toHaveBeenCalled();
 	});
 
+	it('a membership read that fails slowly still lets the branded email out in time', async () => {
+		vi.useFakeTimers();
+		try {
+			let clock = NOW;
+			const t = setup({ members: [LABEL_B], hosts: { [HOST_B]: B }, flagOn: [LABEL_B] });
+			const slowFail = vi.fn(
+				() =>
+					new Promise<string[]>((_, reject) =>
+						setTimeout(() => {
+							clock += 900;
+							reject(new Error('db slow'));
+						}, 900)
+					)
+			);
+			const run = handleSendEmailHook(signed(payload('magiclink', BACK_B)), {
+				config: CONFIG,
+				memberOrgIds: slowFail,
+				orgBrand: t.orgBrand,
+				brandingEnabled: async (id) => id === LABEL_B,
+				fetcher: t.fetcher as unknown as typeof fetch,
+				now: () => clock,
+				log: () => {}
+			});
+			await vi.advanceTimersByTimeAsync(1000);
+			const res = await run;
+			expect(res.status).toBe(200);
+			const [mail] = t.mails();
+			expect(mail.from).toBe('"Label B" <no-reply@auth.labelkit.co>');
+			expect(links(mail.text)[0].searchParams.has('redirect_to')).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('no time left for the lookups: nothing is started, the plain link goes out', async () => {
 		let clock = NOW;
 		const t = setup({ members: [LABEL_B], hosts: { [HOST_B]: B } });

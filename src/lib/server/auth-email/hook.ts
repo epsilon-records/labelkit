@@ -219,7 +219,10 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const email = { ...parsed.data.email_data, redirect_to: redirectTo } as HookEmailData;
 
 	// Branding gets min(BRANDING_BUDGET_MS, what is left minus LEGACY_RESERVE_MS), or nothing.
-	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - LEGACY_RESERVE_MS);
+	// With the label already found and its membership read already failed, the old path will not
+	// look membership up again, so branding only has to leave the time for the send.
+	const reserve = checked.brand ? SEND_RESERVE_MS : LEGACY_RESERVE_MS;
+	const brandingMs = Math.min(BRANDING_BUDGET_MS, remaining() - reserve);
 	const brandingDeadline = clock() + brandingMs;
 	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
 	const branded =
