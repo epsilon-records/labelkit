@@ -401,6 +401,8 @@ export function parseErnDocuments(documents: ErnDocument[]): ImportPlan {
 				code: 'ern.invalid',
 				message: document.name + ': ' + e.message
 			});
+			// An error counts against the same budget: past it, later documents are not read.
+			if (plan.issues.length > MAX_ERN_FINDINGS) break;
 		}
 	}
 	return plan;

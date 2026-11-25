@@ -58,3 +58,16 @@ it('stops at the findings cap and does not read the documents after it', () => {
 	expect(plan.issues.some((issue) => issue.message.startsWith('later.xml'))).toBe(false);
 	expect(built.calls).toBe(1);
 });
+
+it('counts a validation error against the findings cap and stops there', () => {
+	// Exactly the cap in warnings, then the missing-release error takes the upload over it.
+	const full = message('<ProprietaryId/>'.repeat(MAX_ERN_FINDINGS));
+	const plan = parseErnDocuments([
+		{ name: 'full.xml', text: full },
+		{ name: 'later.xml', text: full }
+	]);
+	expect(plan.issues).toHaveLength(MAX_ERN_FINDINGS + 1);
+	expect(plan.issues.at(-1)).toMatchObject({ level: 'error', code: 'ern.invalid' });
+	expect(plan.issues.some((issue) => issue.message.startsWith('later.xml'))).toBe(false);
+	expect(built.calls).toBe(1);
+});
