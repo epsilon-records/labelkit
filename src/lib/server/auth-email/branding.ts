@@ -70,6 +70,31 @@ export function redirectHost(redirectTo: string): string | null {
 	}
 }
 
+/**
+ * Whether a sign-in email's return address is on LabelKit itself: labelkit.co, local development
+ * or a Netlify deploy preview of this site. Any other address is a label's own domain (or nothing
+ * LabelKit serves), and hook.ts then sends it only to members of that label.
+ */
+export function isLabelKitReturnAddress(redirectTo: string): boolean {
+	let url: URL;
+	try {
+		url = new URL(redirectTo);
+	} catch {
+		return false;
+	}
+	const host = url.hostname.toLowerCase();
+	if (url.username || url.password) return false;
+	if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	}
+	if (url.protocol !== 'https:') return false;
+	return (
+		host === 'labelkit.co' ||
+		host === 'www.labelkit.co' ||
+		/^(deploy-preview-\d+|[a-z0-9-]+)--labelkit\.netlify\.app$/.test(host)
+	);
+}
+
 const senderKeyAad = (orgId: string, domain: string) =>
 	Buffer.from(`labelkit:auth-sender:${orgId}:${domain}:resend_key`);
 

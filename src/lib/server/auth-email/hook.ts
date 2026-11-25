@@ -3,7 +3,13 @@ import { verifyHook } from './signature';
 import { chooseSender, SENDERS, type SenderId } from './sender';
 import { render, UnsupportedEmailType, type HookEmailData, type HookUser } from './templates';
 import { RESEND_TIMEOUT_MS, ResendFailed, sendWithResend } from './resend';
-import { brandedSender, redirectHost, type BrandLookup, type OrgBrand } from './branding';
+import {
+	brandedSender,
+	isLabelKitReturnAddress,
+	redirectHost,
+	type BrandLookup,
+	type OrgBrand
+} from './branding';
 import type { Sender } from './sender';
 
 /**
@@ -63,6 +69,9 @@ export const BRANDING_BUDGET_MS = 800;
  * left (a slow body read), branding is skipped: no lookup, no flag check.
  */
 export const LEGACY_RESERVE_MS = HOOK_BUDGET_MS - BRANDING_BUDGET_MS;
+
+/** What the return-address check leaves for the send itself (the Resend send, see above). */
+export const SEND_RESERVE_MS = 2200;
 
 export type HookConfig = {
 	hookSecret: string | undefined;
@@ -169,9 +178,35 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		return hookError(400, 'Send Email hook payload was not understood.');
 	}
 	const user = parsed.data.user as HookUser;
-	const email = parsed.data.email_data as HookEmailData;
-	const type = email.email_action_type;
+	const type = parsed.data.email_data.email_action_type;
 	const base = { user: user.id, action_type: type, webhook_id: verified.id };
+
+	// Each lookup runs at most once per call, whichever step asks first.
+	const once = <A extends unknown[], R>(fn: (...a: A) => Promise<R>, key: (...a: A) => string) => {
+		const seen = new Map<string, Promise<R>>();
+		return (...a: A) => {
+			const k = key(...a);
+			if (!seen.has(k)) seen.set(k, fn(...a));
+			return seen.get(k)!;
+		};
+	};
+	const lookups: HookDeps = {
+		...deps,
+		memberOrgIds: once(deps.memberOrgIds, () => ''),
+		orgBrand: deps.orgBrand
+			? once(deps.orgBrand, (l) => ('orgId' in l ? `id:${l.orgId}` : `host:${l.host}`))
+			: undefined
+	};
+
+	// A link may carry a label's own domain as its return address only for a member of that label.
+	const redirectTo = await checkReturnAddress(
+		lookups,
+		user.id,
+		parsed.data.email_data.redirect_to,
+		() => remaining() - SEND_RESERVE_MS,
+		(l) => log({ ...base, ...l })
+	);
+	const email = { ...parsed.data.email_data, redirect_to: redirectTo } as HookEmailData;
 
 	const invited = user.user_metadata?.invited_org_id;
 	const invitedOrgId =
@@ -183,7 +218,7 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 	const brandingLeft = () => Math.min(remaining(), brandingDeadline - clock());
 	const branded =
 		brandingMs > 0
-			? await brandFor(deps, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
+			? await brandFor(lookups, type, invitedOrgId, email.redirect_to, brandingLeft, (l) =>
 					log({ ...base, ...l })
 				)
 			: null;
@@ -226,7 +261,7 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 
 	let memberOrgIds: string[];
 	try {
-		memberOrgIds = await withinBudget(deps.memberOrgIds(user.id), remaining());
+		memberOrgIds = await withinBudget(lookups.memberOrgIds(user.id), remaining());
 	} catch {
 		log({ ...base, level: 'error', outcome: 'lookup_failed' });
 		return hookError(500, 'Could not prepare the sign-in email. Try again shortly.');
@@ -246,6 +281,40 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 		return hookError(500, `Sign-in email is not configured (no Resend key for ${sender.domain}).`);
 	}
 	return deliver(deps, config, user, email, sender, key, verified.id, remaining, base);
+}
+
+/**
+ * The return address the link may carry. LabelKit's own hosts, and no address at all, pass as they
+ * are. Any other address must be the active domain of a label the recipient belongs to; otherwise,
+ * or when either lookup fails or runs out of budget, it is dropped and Supabase sends the person to
+ * its Site URL (labelkit.co). The email itself still goes out.
+ */
+async function checkReturnAddress(
+	deps: HookDeps,
+	userId: string,
+	redirectTo: string,
+	remaining: () => number,
+	log: (line: Record<string, unknown>) => void
+): Promise<string> {
+	if (!redirectTo || isLabelKitReturnAddress(redirectTo)) return redirectTo;
+	const drop = (reason: string) => {
+		log({ level: 'warn', outcome: 'return_address_dropped', reason });
+		return '';
+	};
+	const host = redirectHost(redirectTo);
+	if (!host) return drop('not_a_label_host');
+	if (!deps.orgBrand) return drop('no_lookup');
+	try {
+		const [brand, members] = await withinBudget(
+			Promise.all([deps.orgBrand({ host }), deps.memberOrgIds(userId)]),
+			remaining()
+		);
+		if (!brand) return drop('unknown_host');
+		const label = brand.orgId.toLowerCase();
+		return members.some((id) => id.toLowerCase() === label) ? redirectTo : drop('not_a_member');
+	} catch {
+		return drop('lookup_failed');
+	}
 }
 
 /**
