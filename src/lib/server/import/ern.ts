@@ -6,6 +6,14 @@ import type { ImportPlan, PlannedCredit, PlannedRecording, PlannedRelease } from
 
 export type ErnDocument = { name: string; text: string };
 
+/** Budgets for one ERN message, enforced while its XML streams. */
+export const MAX_ERN_ELEMENTS = 20000;
+export const MAX_ERN_DEPTH = 32;
+/** The most findings one upload may produce; the import page refuses to list more. */
+export const MAX_ERN_FINDINGS = 1000;
+
+class TooManyFindings extends Error {}
+
 type Element = {
 	nodeType: 1;
 	localName: string;
@@ -128,7 +136,9 @@ function losses(root: Element, report: (code: string, message: string) => void) 
 	let count = 0;
 	while (pending.length) {
 		const { node, path, depth } = pending.pop()!;
-		if (++count > 20000 || depth > 32) throw new InvalidErn('ERN message is too complex.');
+		if (++count > MAX_ERN_ELEMENTS || depth > MAX_ERN_DEPTH) {
+			throw new InvalidErn('ERN message is too complex.');
+		}
 		if (unmapped.test(node.localName)) report('ern.unmapped', path + ' was not imported.');
 		if (node.localName === 'ReleaseDate' && node.getAttribute('ApplicableTerritoryCode')) {
 			report('ern.unmapped', path + '/@ApplicableTerritoryCode was not imported.');
@@ -169,23 +179,39 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 	}
 	let root: Element | null;
 	try {
-		// Validate the complete document before building the catalogue tree.
-		new SaxesParser({ xmlns: true }).write(document.text).close();
+		// Validate the complete document, and hold it to the element and depth budgets, while it
+		// streams: nothing builds a tree from a message that is too wide or too deep.
+		const stream = new SaxesParser({ xmlns: true });
+		let count = 0;
+		let depth = 0;
+		stream.on('opentag', () => {
+			if (++count > MAX_ERN_ELEMENTS || ++depth > MAX_ERN_DEPTH) {
+				throw new InvalidErn('ERN message is too complex.');
+			}
+		});
+		stream.on('closetag', () => {
+			depth--;
+		});
+		stream.write(document.text).close();
 		root = (create(document.text).doc().node as unknown as DomDocument).documentElement;
-	} catch {
+	} catch (e) {
+		if (e instanceof InvalidErn) throw e;
 		throw new InvalidErn('The XML could not be parsed.');
 	}
 	if (root?.localName !== 'NewReleaseMessage' || root.namespaceURI !== ERN_NAMESPACE) {
 		throw new InvalidErn('Expected a DDEX ERN 4.3 NewReleaseMessage.');
 	}
 
-	const warn = (code: string, message: string) =>
+	const warn = (code: string, message: string) => {
+		// Capped as findings are produced, so one upload cannot grow the list without bound.
+		if (plan.issues.length >= MAX_ERN_FINDINGS) throw new TooManyFindings();
 		plan.issues.push({
 			level: 'warning',
 			code,
 			line: null,
 			message: document.name + ': ' + message
 		});
+	};
 	losses(root, warn);
 
 	const partyNames = new Map<string, string>();
@@ -358,6 +384,16 @@ export function parseErnDocuments(documents: ErnDocument[]): ImportPlan {
 		try {
 			parseDocument(document, plan);
 		} catch (e) {
+			if (e instanceof TooManyFindings) {
+				// One more than the cap, so callers that check the cap refuse the upload; stop here.
+				plan.issues.push({
+					level: 'error',
+					line: null,
+					code: 'ern.too-many-findings',
+					message: document.name + ': the upload has too many findings to review.'
+				});
+				break;
+			}
 			if (!(e instanceof InvalidErn)) throw e;
 			plan.issues.push({
 				level: 'error',
