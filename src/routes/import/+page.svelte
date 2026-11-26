@@ -134,6 +134,7 @@
 			<form method="POST" action="?/apply" enctype="multipart/form-data" class="stack">
 				<input type="hidden" name="format" value={form.format} />
 				<input type="hidden" name="sha256" value={form.sha256} />
+				<input type="hidden" name="orgId" value={form.orgId} />
 				{#if form.format === 'ern'}
 					<label for="confirm-file">Select the same file to confirm</label>
 					<Input id="confirm-file" type="file" name="file" accept=".xml,.zip" required />

@@ -15,7 +15,14 @@ vi.mock('xmlbuilder2', async (original) => {
 });
 
 import { ERN_NAMESPACE } from '../ddex/ern';
-import { MAX_ERN_DEPTH, MAX_ERN_ELEMENTS, MAX_ERN_FINDINGS, parseErnDocuments } from './ern';
+import {
+	findingsOverBudget,
+	MAX_ERN_DEPTH,
+	MAX_ERN_ELEMENTS,
+	MAX_ERN_FINDINGS,
+	MAX_ERN_FINDINGS_BYTES,
+	parseErnDocuments
+} from './ern';
 
 const message = (inner: string) =>
 	'<ern:NewReleaseMessage xmlns:ern="' + ERN_NAMESPACE + '">' + inner + '</ern:NewReleaseMessage>';
@@ -70,4 +77,17 @@ it('counts a validation error against the findings cap and stops there', () => {
 	expect(plan.issues.at(-1)).toMatchObject({ level: 'error', code: 'ern.invalid' });
 	expect(plan.issues.some((issue) => issue.message.startsWith('later.xml'))).toBe(false);
 	expect(built.calls).toBe(1);
+});
+
+it('measures findings by the size of their text, not only their count', () => {
+	const few = message('<ProprietaryId/>'.repeat(10));
+	const ordinary = parseErnDocuments([{ name: 'release.xml', text: few }]);
+	expect(ordinary.issues.length).toBeLessThan(MAX_ERN_FINDINGS);
+	expect(findingsOverBudget(ordinary.issues)).toBe(false);
+
+	// The same few findings under a long archive member name; multi-byte text counts in bytes.
+	const name = 'é'.repeat(MAX_ERN_FINDINGS_BYTES / 20) + '.xml';
+	const long = parseErnDocuments([{ name, text: few }]);
+	expect(long.issues).toHaveLength(ordinary.issues.length);
+	expect(findingsOverBudget(long.issues)).toBe(true);
 });

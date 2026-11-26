@@ -122,3 +122,44 @@ it('rejects a truncated document before mapping catalogue data', () => {
 	expect(plan.issues.some((issue) => issue.level === 'error')).toBe(true);
 	expect(plan.releases.size).toBe(0);
 });
+
+it('reads zero-padded forms of one UPC/EAN as the same release', () => {
+	for (const padded of ['012345678905', '0012345678905', '00012345678905']) {
+		const source = xml().replace('<ICPN>012345678905<', '<ICPN>' + padded + '<');
+		expect(source).toContain(padded);
+		const plan = parseErnDocuments([{ name: 'padded.xml', text: source }]);
+		expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+		expect([...plan.releases.keys()]).toEqual(['012345678905']);
+	}
+	// A wrong check digit and a nonzero 14-digit indicator stay refused.
+	for (const refused of ['00012345678906', '10012345678902']) {
+		const source = xml().replace('<ICPN>012345678905<', '<ICPN>' + refused + '<');
+		const plan = parseErnDocuments([{ name: 'refused.xml', text: source }]);
+		expect(plan.issues.some((issue) => issue.message.includes('invalid UPC/EAN'))).toBe(true);
+	}
+});
+
+it('imports the release date marked as the default, wherever it stands', () => {
+	const dated = (dates: string) =>
+		parseErnDocuments([
+			{
+				name: 'dates.xml',
+				text: xml().replace('<ReleaseDate>2026-11-17</ReleaseDate>', dates)
+			}
+		]);
+	const us = '<ReleaseDate ApplicableTerritoryCode="US">2026-12-01</ReleaseDate>';
+	const plan = dated(us + '<ReleaseDate IsDefault="true">2026-11-20</ReleaseDate>');
+	expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+	expect(plan.releases.get('012345678905')?.releaseDate).toBe('2026-11-20');
+	expect(plan.issues.some((issue) => issue.message.includes('variants beyond the default'))).toBe(
+		true
+	);
+
+	// With no default, a date for no single territory comes before a territory's own date.
+	expect(
+		dated(us + '<ReleaseDate>2026-11-21</ReleaseDate>').releases.get('012345678905')?.releaseDate
+	).toBe('2026-11-21');
+	expect(
+		dated('<ReleaseDate>2026-11-22</ReleaseDate>').releases.get('012345678905')?.releaseDate
+	).toBe('2026-11-22');
+});

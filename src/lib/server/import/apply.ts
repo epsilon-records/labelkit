@@ -10,7 +10,7 @@ import {
 	releaseTracks
 } from '../db/schema';
 import { uuidv7 } from '../db/uuidv7';
-import { partyMatchKey } from './identifiers';
+import { canonicalGtin, gtinForms, partyMatchKey } from './identifiers';
 import { type ImportPlan, summarizePlan } from './symphonic';
 
 export type ApplyResult = {
@@ -171,14 +171,21 @@ export async function applyImport(
 			counts.recordings.created = newRecs.length;
 
 			// Releases
-			const upcs = [...plan.releases.keys()];
+			// A stored UPC/EAN matches the file's however either one is zero-padded.
+			const upcs = [
+				...new Set([...plan.releases.keys()].flatMap((upc) => [upc, ...gtinForms(upc)]))
+			];
+			// Locked, as a manual track add locks its release: the track positions read below then
+			// hold until this import has written its own.
 			const existingRels = upcs.length
 				? await tx
 						.select()
 						.from(releases)
 						.where(and(eq(releases.orgId, orgId), inArray(releases.upc, upcs)))
+						.for('update')
 				: [];
 			const relByUpc = new Map(existingRels.map((r) => [r.upc, r]));
+			const relByGtin = new Map(existingRels.map((r) => [canonicalGtin(r.upc) ?? r.upc, r]));
 			const relId = new Map(existingRels.map((r) => [r.upc, r.id]));
 			const newRels = [];
 			for (const r of plan.releases.values()) {
@@ -192,7 +199,11 @@ export async function applyImport(
 					genre: r.genre,
 					subgenre: r.subgenre
 				};
-				const cur = relByUpc.get(r.upc);
+				// A padded twin stands in only when the file does not also carry it under its own form.
+				const twin = relByGtin.get(canonicalGtin(r.upc) ?? r.upc);
+				const cur =
+					relByUpc.get(r.upc) ?? (twin && !plan.releases.has(twin.upc) ? twin : undefined);
+				if (cur) relId.set(r.upc, cur.id);
 				if (!cur) {
 					const row = { id: uuidv7(), orgId, upc: r.upc, ...fields };
 					newRels.push(row);

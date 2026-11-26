@@ -1,7 +1,7 @@
 import { SaxesParser } from 'saxes';
 import { create } from 'xmlbuilder2';
 import { ERN_NAMESPACE } from '../ddex/ern';
-import { isValidGtin, isValidIsrc, normalizeIsrc, partyMatchKey } from './identifiers';
+import { canonicalGtin, isValidIsrc, normalizeIsrc, partyMatchKey } from './identifiers';
 import type { ImportPlan, PlannedCredit, PlannedRecording, PlannedRelease } from './symphonic';
 
 export type ErnDocument = { name: string; text: string };
@@ -11,6 +11,18 @@ export const MAX_ERN_ELEMENTS = 20000;
 export const MAX_ERN_DEPTH = 32;
 /** The most findings one upload may produce; the import page refuses to list more. */
 export const MAX_ERN_FINDINGS = 1000;
+/** The most finding text, in UTF-8 bytes, one upload may send back to the import page. */
+export const MAX_ERN_FINDINGS_BYTES = 500_000;
+
+/** Whether the findings' text is past that budget; it stops counting at the first byte over. */
+export function findingsOverBudget(issues: ImportPlan['issues']): boolean {
+	let bytes = 0;
+	for (const issue of issues) {
+		bytes += Buffer.byteLength(issue.message);
+		if (bytes > MAX_ERN_FINDINGS_BYTES) return true;
+	}
+	return false;
+}
 
 class TooManyFindings extends Error {}
 
@@ -78,6 +90,16 @@ function date(raw: string): string | null {
 		throw new InvalidErn('ReleaseDate must be a complete calendar date.');
 	}
 	return raw;
+}
+
+/** The release date marked as the default, else one for no single territory, else the first. */
+function releaseDate(node: Element): string {
+	const dates = children(node, 'ReleaseDate');
+	const chosen =
+		dates.find((item) => ['true', '1'].includes(item.getAttribute('IsDefault')?.trim() ?? '')) ??
+		dates.find((item) => !item.getAttribute('ApplicableTerritoryCode')) ??
+		dates[0];
+	return chosen?.textContent?.trim() || '';
 }
 
 function title(node: Element) {
@@ -154,7 +176,12 @@ function losses(root: Element, report: (code: string, message: string) => void) 
 			if (items.filter((item) => item.localName === tag).length > 1) {
 				report(
 					'ern.unmapped',
-					path + '/' + tag + ' has variants beyond the first that were not imported.'
+					path +
+						'/' +
+						tag +
+						(tag === 'ReleaseDate'
+							? ' has variants beyond the default that were not imported.'
+							: ' has variants beyond the first that were not imported.')
 				);
 			}
 		}
@@ -278,8 +305,9 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 	if (!releases.length) throw new InvalidErn('The message contains no release.');
 	for (const node of releases) {
 		const id = child(node, 'ReleaseId');
-		const upc = text(id, 'ICPN');
-		if (!isValidGtin(upc)) throw new InvalidErn('A release has a missing or invalid UPC/EAN.');
+		// Zero-padded forms of one UPC/EAN are the same release; a nonzero indicator is not.
+		const upc = canonicalGtin(text(id, 'ICPN'));
+		if (!upc) throw new InvalidErn('A release has a missing or invalid UPC/EAN.');
 		const references = children(node, 'ReleaseLabelReference');
 		const labelRefs = references.map((reference) =>
 			required(reference.textContent?.trim() ?? '', 'ReleaseLabelReference')
@@ -337,7 +365,7 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 				...genre(node),
 				catalogNumber: text(id, 'CatalogNumber') || null,
 				releaseDate: (() => {
-					const raw = text(node, 'ReleaseDate');
+					const raw = releaseDate(node);
 					if (/^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(raw)) {
 						warn(
 							'ern.unmapped',
