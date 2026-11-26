@@ -95,9 +95,7 @@ it('M06: two discs retain position 1, with one shared resource and typed compone
 		1
 	);
 	const groups = create(xml).filter(
-		(n) =>
-			n.node.nodeName === 'ResourceGroup' &&
-			(n.node as Element).getAttribute('ResourceGroupType') === 'Component',
+		(n) => n.node.nodeName === 'ResourceGroup' && n.node.parentNode?.nodeName === 'ResourceGroup',
 		false,
 		true
 	);
