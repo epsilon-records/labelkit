@@ -32,6 +32,7 @@
 	const faq = [
 		{
 			q: 'How is LabelKit different from DistroKid?',
+			comparison: true,
 			a: 'DistroKid is built for artists uploading their own songs. LabelKit is built for labels: many artists per record, splits, agreements and consents, and later the option to run distribution for others under your own name.'
 		},
 		{
@@ -75,6 +76,18 @@
 					priceCurrency: 'EUR',
 					unitCode: 'MON'
 				}
+			},
+			{
+				'@type': 'Offer',
+				name: 'Label annual',
+				price: '120',
+				priceCurrency: 'EUR',
+				priceSpecification: {
+					'@type': 'UnitPriceSpecification',
+					price: '120',
+					priceCurrency: 'EUR',
+					unitCode: 'ANN'
+				}
 			}
 		],
 		publisher: {
@@ -83,9 +96,24 @@
 			url: 'https://epsilonrecords.com/'
 		}
 	};
-	const jsonLd =
-		`<script type="application/ld+json">${JSON.stringify(structuredData).replace(/</g, '\\u003c')}</` +
-		'script>';
+	const faqData = {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: faq
+			.filter((item) => !item.comparison)
+			.map(({ q, a }) => ({
+				'@type': 'Question',
+				name: q,
+				acceptedAnswer: { '@type': 'Answer', text: a }
+			}))
+	};
+	const jsonLd = [structuredData, faqData]
+		.map(
+			(data) =>
+				`<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</` +
+				'script>'
+		)
+		.join('');
 </script>
 
 <svelte:head>

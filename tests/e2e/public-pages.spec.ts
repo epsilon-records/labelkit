@@ -34,3 +34,24 @@ for (const { path, heading } of pages) {
 		expect(errors).toEqual([]);
 	});
 }
+
+test('home structured data matches the visible offers and eligible FAQ answers', async ({
+	page
+}) => {
+	await page.goto('/');
+	const structuredData = (
+		await page.locator('head script[type="application/ld+json"]').allTextContents()
+	).map((text) => JSON.parse(text));
+	const app = structuredData.find((record) => record['@type'] === 'SoftwareApplication');
+	const faq = structuredData.find((record) => record['@type'] === 'FAQPage');
+
+	expect(app.offers.map(({ price }: { price: string }) => price)).toEqual(['0', '12', '120']);
+	await expect(page.getByText('or €120 a year', { exact: true })).toBeVisible();
+	expect(faq.mainEntity).toHaveLength(3);
+	for (const item of faq.mainEntity) {
+		await expect(page.locator('#faq').getByText(item.name, { exact: true })).toBeVisible();
+		await expect(
+			page.locator('#faq').getByText(item.acceptedAnswer.text, { exact: true })
+		).toBeVisible();
+	}
+});
