@@ -60,13 +60,16 @@ export async function addTrack(
 	const parsed = TrackPosition.safeParse(input);
 	if (!parsed.success) throw new EditError(issuesToFields(parsed.error));
 	return withAudit(db, ctx, async (tx, audit) => {
+		const { disc, position, mode } = parsed.data;
+		// One order for every writer: the plan-limit lock, then the release. An import takes them
+		// that way round, so the new recording's limit lock is taken here, before the release.
+		if (limits && mode === 'new') await lockLimit(tx, ctx.orgId, 'tracks');
 		const [release] = await tx
 			.select()
 			.from(releases)
 			.where(and(eq(releases.orgId, ctx.orgId), eq(releases.id, releaseId)))
 			.for('update');
 		if (!release) throw new EditError({ form: 'Release not found' });
-		const { disc, position, mode } = parsed.data;
 		const [occupied] = await tx
 			.select()
 			.from(releaseTracks)
