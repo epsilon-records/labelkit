@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrandLookup, OrgBrand } from './branding';
-import { handleSendEmailHook, type HookConfig } from './hook';
+import { handleSendEmailHook, SEND_RESERVE_MS, type HookConfig } from './hook';
 import { hookKey, signHook } from './signature';
 import { randomHookSecret } from './test-secrets';
 
@@ -297,6 +297,40 @@ describe('a label domain as the return address', () => {
 			const [mail] = t.mails();
 			expect(mail.from).toBe('"Label B" <no-reply@auth.labelkit.co>');
 			expect(links(mail.text)[0].searchParams.has('redirect_to')).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a membership read that never answers still leaves a found label its branding and a sent email', async () => {
+		vi.useFakeTimers();
+		try {
+			let clock = NOW;
+			const t = setup({ hosts: { [HOST_B]: B }, flagOn: [LABEL_B] });
+			// Pending for the full validation allowance (4000 - 2200 - 800 = 1000 ms), then gone.
+			const neverAnswers = vi.fn(() => new Promise<string[]>(() => {}));
+			const tick = (ms: number) => {
+				clock += ms;
+				return vi.advanceTimersByTimeAsync(ms);
+			};
+			const run = handleSendEmailHook(signed(payload('magiclink', BACK_B)), {
+				config: CONFIG,
+				memberOrgIds: neverAnswers,
+				orgBrand: t.orgBrand,
+				brandingEnabled: async (id) => id === LABEL_B,
+				fetcher: t.fetcher as unknown as typeof fetch,
+				now: () => clock,
+				log: () => {}
+			});
+			await tick(0); // lets the body read finish, so the lookups' timers are armed
+			await tick(1000);
+			const res = await run;
+			expect(res.status).toBe(200);
+			const [mail] = t.mails();
+			expect(mail.from).toBe('"Label B" <no-reply@auth.labelkit.co>');
+			expect(links(mail.text)[0].searchParams.has('redirect_to')).toBe(false);
+			// The branding step still had its full allowance: the send had at least SEND_RESERVE_MS.
+			expect(clock - NOW).toBeLessThanOrEqual(4000 - SEND_RESERVE_MS);
 		} finally {
 			vi.useRealTimers();
 		}
