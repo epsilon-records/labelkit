@@ -294,17 +294,18 @@ describe('label sessions (database)', () => {
 
 	it('is closed to every database role but the owner', async () => {
 		for (const table of ['label_sessions', 'label_handoffs']) {
-			const failure = await asUser(db, MEMBER, async (tx) => {
-				const [role] = (await tx.execute(sql`select current_user as role`)) as unknown as {
+			const denied = await asUser(db, MEMBER, async (tx) => {
+				// The role is the app's, so the denial below is its, not a failure to set it.
+				const [row] = (await tx.execute(sql`select current_user as role`)) as unknown as {
 					role: string;
 				}[];
-				expect(role.role).toBe('labelkit_app');
-				return tx.execute(sql.raw(`select count(*) from public.${table}`)).then(
-					() => null,
-					(e: { code?: string; cause?: { code?: string } }) => e
-				);
-			});
-			expect(failure?.code ?? failure?.cause?.code).toBe('42501');
+				expect(row.role).toBe('labelkit_app');
+				await tx.execute(sql.raw(`select count(*) from public.${table}`));
+			}).then(
+				() => null,
+				(e: { code?: string; cause?: { code?: string } }) => e.code ?? e.cause?.code
+			);
+			expect(denied).toBe('42501');
 		}
 	});
 });
