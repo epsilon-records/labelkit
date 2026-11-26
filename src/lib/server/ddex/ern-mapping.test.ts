@@ -248,3 +248,16 @@ it('does not duplicate a version already in the display title', () => {
 	expect(xml).toContain('<DisplayTitleText>Release (Radio Edit)</DisplayTitleText>');
 	expect(xml).toContain('<SubTitle>Radio Edit</SubTitle>');
 });
+
+it('accepts the ERN language pattern on both the release and recording', () => {
+	const snapshot = completeErnFixture();
+	snapshot.release.metadataLanguage = 'en-Latn-US';
+	snapshot.recordings[0].metadataLanguage = 'en-Latn-US';
+	expect(run(snapshot).xml?.match(/LanguageAndScriptCode="en-Latn-US"/g)).toHaveLength(2);
+	blocked((s) => {
+		s.release.metadataLanguage = 'en-1234';
+	}, 'release.metadataLanguage');
+	blocked((s) => {
+		s.recordings[0].metadataLanguage = 'en-1234';
+	}, 'metadataLanguage');
+});

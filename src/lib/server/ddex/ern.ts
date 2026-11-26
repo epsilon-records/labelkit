@@ -97,6 +97,9 @@ const RECORDING_TYPES = new Set([
 	'NonMusicalWorkSoundRecording',
 	'SpokenWordSoundRecording'
 ]);
+// ERN 4.3 LanguageAndScriptCode pattern from the release-notification schema.
+const LANGUAGE_AND_SCRIPT =
+	/^[a-zA-Z]{2,3}(?:-[a-zA-Z]+)?(?:-[a-zA-Z]{2}|-[0-9]{3})?(?:-[a-zA-Z][a-zA-Z0-9]{4,})?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const validText = (value: unknown): value is string =>
 	typeof value === 'string' &&
@@ -268,12 +271,12 @@ export function generateErn(
 			add('invalid', `${path}.title`, 'Valid title and version text are required.');
 		if (
 			(path === 'release' || row.metadataLanguage) &&
-			(!row.metadataLanguage || !/^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$/.test(row.metadataLanguage))
+			(!row.metadataLanguage || !LANGUAGE_AND_SCRIPT.test(row.metadataLanguage))
 		)
 			add(
 				'missing_required',
 				`${path}.metadataLanguage`,
-				'Metadata language is missing from the catalogue.'
+				'Metadata language is missing or does not match ERN 4.3.'
 			);
 		if (!row.parentalWarning || !WARNINGS.has(row.parentalWarning))
 			add(
