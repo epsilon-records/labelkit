@@ -23,6 +23,7 @@ on:
     paths:
       - 'src/routes/**'
       - '!src/routes/api/**'
+      - '!src/routes/v1/**'
       - 'src/lib/components/**'
       - src/app.html
       - src/app.css

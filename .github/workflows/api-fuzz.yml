@@ -32,6 +32,8 @@ on:
   pull_request:
     paths:
       - 'src/routes/api/**'
+      - 'src/routes/v1/**'
+      - src/hooks.server.ts
       - 'src/lib/server/**'
       - docs/openapi.yaml
       - 'drizzle/**'
