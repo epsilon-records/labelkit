@@ -138,3 +138,28 @@ it('reads zero-padded forms of one UPC/EAN as the same release', () => {
 		expect(plan.issues.some((issue) => issue.message.includes('invalid UPC/EAN'))).toBe(true);
 	}
 });
+
+it('imports the release date marked as the default, wherever it stands', () => {
+	const dated = (dates: string) =>
+		parseErnDocuments([
+			{
+				name: 'dates.xml',
+				text: xml().replace('<ReleaseDate>2026-11-17</ReleaseDate>', dates)
+			}
+		]);
+	const us = '<ReleaseDate ApplicableTerritoryCode="US">2026-12-01</ReleaseDate>';
+	const plan = dated(us + '<ReleaseDate IsDefault="true">2026-11-20</ReleaseDate>');
+	expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+	expect(plan.releases.get('012345678905')?.releaseDate).toBe('2026-11-20');
+	expect(plan.issues.some((issue) => issue.message.includes('variants beyond the default'))).toBe(
+		true
+	);
+
+	// With no default, a date for no single territory comes before a territory's own date.
+	expect(
+		dated(us + '<ReleaseDate>2026-11-21</ReleaseDate>').releases.get('012345678905')?.releaseDate
+	).toBe('2026-11-21');
+	expect(
+		dated('<ReleaseDate>2026-11-22</ReleaseDate>').releases.get('012345678905')?.releaseDate
+	).toBe('2026-11-22');
+});

@@ -80,6 +80,16 @@ function date(raw: string): string | null {
 	return raw;
 }
 
+/** The release date marked as the default, else one for no single territory, else the first. */
+function releaseDate(node: Element): string {
+	const dates = children(node, 'ReleaseDate');
+	const chosen =
+		dates.find((item) => ['true', '1'].includes(item.getAttribute('IsDefault')?.trim() ?? '')) ??
+		dates.find((item) => !item.getAttribute('ApplicableTerritoryCode')) ??
+		dates[0];
+	return chosen?.textContent?.trim() || '';
+}
+
 function title(node: Element) {
 	const composite = child(node, 'DisplayTitle');
 	return {
@@ -154,7 +164,12 @@ function losses(root: Element, report: (code: string, message: string) => void) 
 			if (items.filter((item) => item.localName === tag).length > 1) {
 				report(
 					'ern.unmapped',
-					path + '/' + tag + ' has variants beyond the first that were not imported.'
+					path +
+						'/' +
+						tag +
+						(tag === 'ReleaseDate'
+							? ' has variants beyond the default that were not imported.'
+							: ' has variants beyond the first that were not imported.')
 				);
 			}
 		}
@@ -338,7 +353,7 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 				...genre(node),
 				catalogNumber: text(id, 'CatalogNumber') || null,
 				releaseDate: (() => {
-					const raw = text(node, 'ReleaseDate');
+					const raw = releaseDate(node);
 					if (/^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(raw)) {
 						warn(
 							'ern.unmapped',
