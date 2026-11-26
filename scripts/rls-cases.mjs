@@ -670,3 +670,48 @@ RLS_CASES.push({
 		"SELECT relrowsecurity::text FROM pg_class WHERE oid = 'public.org_auth_senders'::regclass",
 	expect: 'true'
 });
+
+// label_sessions and label_handoffs back a person's session on a label's own domain (migration 0039,
+// knowledge labelkit 0051). Only label-session.ts reads or writes them, on the owner connection:
+// no member, no Data API role and not the Send Email hook's role may touch either table.
+for (const table of ['label_sessions', 'label_handoffs']) {
+	for (const [role, claim] of /** @type {[string, string | null][]} */ ([
+		['anon', null],
+		['authenticated', IDS.u1],
+		['labelkit_app', IDS.u1],
+		['labelkit_app', IDS.u4],
+		['labelkit_auth_email', null]
+	])) {
+		for (const [what, probe] of [
+			['read', `SELECT count(*) FROM public.${table}`],
+			[
+				'insert',
+				table === 'label_sessions'
+					? `INSERT INTO public.label_sessions (id_hash, user_id, org_id, host, expires_at)
+						VALUES (repeat('a', 64), '${IDS.u1}', '${IDS.orgA}', 'a.example.test', now())`
+					: `INSERT INTO public.label_handoffs (ticket_hash, user_id, org_id, host, expires_at)
+						VALUES (repeat('a', 64), '${IDS.u1}', '${IDS.orgA}', 'a.example.test', now())`
+			],
+			['update', `UPDATE public.${table} SET host = 'b.example.test'`],
+			['delete', `DELETE FROM public.${table}`],
+			['truncate', `TRUNCATE public.${table}`]
+		]) {
+			RLS_CASES.push({
+				requiresSupabaseRoles: role === 'anon' || role === 'authenticated',
+				name: `${role} (${claim ?? 'no session'}) cannot ${what} ${table}`,
+				role,
+				claim,
+				probe,
+				expect: 'error',
+				errorCode: '42501'
+			});
+		}
+	}
+	RLS_CASES.push({
+		name: `${table} has row-level security enabled`,
+		role: 'postgres',
+		claim: null,
+		probe: `SELECT relrowsecurity::text FROM pg_class WHERE oid = 'public.${table}'::regclass`,
+		expect: 'true'
+	});
+}
