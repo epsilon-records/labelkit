@@ -94,10 +94,23 @@ it('M06: two discs retain position 1, with one shared resource and typed compone
 	expect(create(xml).filter((n) => n.node.nodeName === 'SoundRecording', false, true)).toHaveLength(
 		1
 	);
-	expect(
-		create(xml).filter((n) => n.node.nodeName === 'ReleaseResourceReference', false, true)
-	).toHaveLength(2);
-	expect(xml).toContain('ResourceGroupType="Component"');
+	const groups = create(xml).filter(
+		(n) =>
+			n.node.nodeName === 'ResourceGroup' &&
+			(n.node as Element).getAttribute('ResourceGroupType') === 'Component',
+		false,
+		true
+	);
+	expect(groups).toHaveLength(2);
+	for (const [index, group] of groups.entries()) {
+		const directText = (node: typeof group, name: string) =>
+			node.find((child) => child.node.nodeName === name, false, false)?.node.textContent;
+		expect(directText(group, 'SequenceNumber')).toBe(String(index + 1));
+		const items = group.filter((n) => n.node.nodeName === 'ResourceGroupContentItem', false, false);
+		expect(items).toHaveLength(1);
+		expect(directText(items[0], 'SequenceNumber')).toBe('1');
+		expect(directText(items[0], 'ReleaseResourceReference')).toBe(`A${s.tracks[0].recordingId}`);
+	}
 	blocked((s) => {
 		s.tracks.push({ ...s.tracks[0] });
 	}, 'tracks.position');
