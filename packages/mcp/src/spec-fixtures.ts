@@ -22,9 +22,11 @@ function deref(s: Schema): Schema {
 	return s;
 }
 
-/** The documented JSON schema of GET `path`'s 200 body. */
-export function responseSchema(path: string): Schema {
-	const response = deref(doc.paths[path].get.responses['200']);
+/** The documented JSON schema of a successful GET or POST body. */
+export function responseSchema(path: string, write = false): Schema {
+	const response = deref(
+		write ? doc.paths[path].post.responses['201'] : doc.paths[path].get.responses['200']
+	);
 	return deref(response.content['application/json'].schema);
 }
 

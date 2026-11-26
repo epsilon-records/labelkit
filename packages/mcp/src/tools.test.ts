@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { LabelKitClient } from './client.js';
+import { ApiError, LabelKitClient } from './client.js';
+import { responseSchema, sample } from './spec-fixtures.js';
+
 import { runTool, TOOLS } from './tools.js';
-import { BASE, bodyFor, CASES, jsonResponse, KEY } from './test-support.js';
+import { BASE, bodyFor, CASES, ID, jsonResponse, KEY } from './test-support.js';
 
 const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
 
@@ -129,5 +131,70 @@ describe('tool handlers, against a mocked fetch', () => {
 		expect(z.string().parse((result.content[0] as { text: string }).text)).toMatch(
 			/Could not reach/
 		);
+	});
+});
+
+describe('create tools against a mocked API client', () => {
+	it.each([
+		[
+			'create_release',
+			'/v1/releases',
+			'/v1/releases',
+			{ title: 'Release', upc: '012345678905', label_id: ID },
+			{}
+		],
+		[
+			'create_recording',
+			'/v1/recordings',
+			'/v1/recordings',
+			{ title: 'Track', isrc: 'USABC2600001' },
+			{}
+		],
+		['create_artist', '/v1/artists', '/v1/artists', { display_name: 'Test Artist' }, {}],
+		[
+			'add_track',
+			`/v1/releases/${ID}/tracks`,
+			'/v1/releases/{id}/tracks',
+			{ mode: 'existing', recording_id: ID, disc: 1, position: 2 },
+			{ release_id: ID }
+		],
+		[
+			'add_track',
+			`/v1/releases/${ID}/tracks`,
+			'/v1/releases/{id}/tracks',
+			{ mode: 'new', title: 'Track', isrc: 'USABC2600001', disc: 1, position: 2 },
+			{ release_id: ID }
+		]
+	])('%s posts to %s', async (name, path, spec, body, input) => {
+		const response = sample(responseSchema(spec, true));
+		const api = { get: vi.fn(), post: vi.fn().mockResolvedValue(response) };
+		const result = await runTool(tool(name) as never, api, { ...input, body });
+		expect(result.isError).toBeUndefined();
+		expect(result.structuredContent).toEqual(response);
+		expect(api.get).not.toHaveBeenCalled();
+		expect(api.post).toHaveBeenCalledExactlyOnceWith(
+			path,
+			body,
+			expect.stringMatching(/^[\da-f-]{36}$/i)
+		);
+	});
+
+	it('reuses the supplied key and explains a write-scope rejection', async () => {
+		const api = {
+			get: vi.fn(),
+			post: vi.fn().mockRejectedValue(new ApiError(403, 'insufficient_scope', 'Forbidden.'))
+		};
+		const body = { display_name: 'Test Artist' };
+		const result = await runTool(tool('create_artist') as never, api, {
+			body,
+			idempotency_key: 'retry-1'
+		});
+		expect(api.post).toHaveBeenCalledExactlyOnceWith('/v1/artists', body, 'retry-1');
+		expect(result).toMatchObject({
+			isError: true,
+			content: [
+				{ text: expect.stringMatching(/403 insufficient_scope: Forbidden\. .*catalog:write/) }
+			]
+		});
 	});
 });

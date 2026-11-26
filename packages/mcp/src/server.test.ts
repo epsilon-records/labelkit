@@ -12,7 +12,11 @@ const NAMES = [
 	'get_release',
 	'list_recordings',
 	'get_recording',
-	'get_recording_analysis'
+	'get_recording_analysis',
+	'create_release',
+	'add_track',
+	'create_recording',
+	'create_artist'
 ];
 
 let client: Client | undefined;
@@ -31,7 +35,7 @@ async function connect(fetchImpl: typeof fetch) {
 }
 
 describe('the server over the protocol', () => {
-	it('lists six read-only tools, each with a title and an output schema', async () => {
+	it('lists read and create tools, each with a title and an output schema', async () => {
 		const c = await connect((async () => jsonResponse({})) as never);
 		expect(c.getServerVersion()).toMatchObject({
 			name: 'labelkit',
@@ -44,7 +48,16 @@ describe('the server over the protocol', () => {
 		expect(tools.map((t) => t.name).sort()).toEqual([...NAMES].sort());
 		for (const t of tools) {
 			expect(t.title, t.name).toMatch(/^([A-Z][a-z]+)( [A-Z][a-z]+)*$/);
-			expect(t.annotations, t.name).toEqual({ readOnlyHint: true, openWorldHint: false });
+			expect(t.annotations, t.name).toEqual(
+				NAMES.slice(-4).includes(t.name)
+					? {
+							readOnlyHint: false,
+							destructiveHint: false,
+							idempotentHint: false,
+							openWorldHint: false
+						}
+					: { readOnlyHint: true, openWorldHint: false }
+			);
 			expect(t.outputSchema, t.name).toMatchObject({ type: 'object' });
 			expect(t.inputSchema, t.name).toMatchObject({ type: 'object' });
 			expect(t.description, t.name).toBeTruthy();

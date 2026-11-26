@@ -31,6 +31,7 @@ export type Query = Record<string, string | number | undefined>;
 /** What the tools need from the API. A remote host can supply its own, such as one per caller. */
 export interface LabelKitApi {
 	get(path: string, query?: Query): Promise<unknown>;
+	post?(path: string, payload: object, idempotencyKey: string): Promise<unknown>;
 }
 
 export type ClientOptions = {

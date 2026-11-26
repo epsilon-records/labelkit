@@ -13,7 +13,11 @@ const ENDPOINT: Record<string, string> = {
 	get_release: '/v1/releases/{id}',
 	list_recordings: '/v1/recordings',
 	get_recording: '/v1/recordings/{id}',
-	get_recording_analysis: '/v1/recordings/{id}/analysis'
+	get_recording_analysis: '/v1/recordings/{id}/analysis',
+	create_release: '/v1/releases',
+	add_track: '/v1/releases/{id}/tracks',
+	create_recording: '/v1/recordings',
+	create_artist: '/v1/artists'
 };
 
 describe('tool output schemas match docs/openapi.yaml', () => {
@@ -26,7 +30,7 @@ describe('tool output schemas match docs/openapi.yaml', () => {
 			const fromTool = flatten(
 				z.toJSONSchema(tool.outputSchema, { io: 'output', reused: 'inline' })
 			);
-			const fromSpec = flatten(responseSchema(ENDPOINT[tool.name]!));
+			const fromSpec = flatten(responseSchema(ENDPOINT[tool.name]!, 'write' in tool));
 			expect(fromTool).toEqual(fromSpec);
 		});
 	}

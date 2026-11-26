@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Output schemas of the six tools: the /v1 response bodies in docs/openapi.yaml, field for field.
+ * Output schemas of the tools: the /v1 response bodies in docs/openapi.yaml, field for field.
  * drift.test.ts fails when the two disagree. Unknown fields the API adds later are dropped, so a
  * tool's output stays what its schema says.
  */
@@ -213,3 +213,61 @@ export const PageInput = {
 	limit: z.number().int().min(1).max(200).optional().describe('Page size, 1 to 200. Default 50.'),
 	after: Id.optional().describe('The `next_cursor` of the previous page. Omit for the first page.')
 };
+
+const Title = Text.min(1);
+const RecordingFields = {
+	title: Title,
+	isrc: Text,
+	version_title: Text.optional(),
+	duration: Text.optional().describe('Optional duration in mm:ss.'),
+	genre: Text.optional(),
+	subgenre: Text.optional()
+};
+export const CreateRecordingBody = z.strictObject(RecordingFields);
+export const CreateArtistBody = z.strictObject({ display_name: Title });
+export const CreateReleaseBody = z.strictObject({
+	title: Title,
+	upc: Text,
+	label_id: Id,
+	version_title: Text.optional(),
+	release_date: Text.optional().describe('Release date in YYYY-MM-DD.'),
+	catalog_number: Text.optional(),
+	genre: Text.optional(),
+	subgenre: Text.optional()
+});
+
+const TrackPosition = {
+	disc: z.number().int().min(1).max(2147483647),
+	position: z.number().int().min(1).max(2147483647)
+};
+export const AddTrackBody = z.discriminatedUnion('mode', [
+	z.strictObject({ mode: z.literal('existing'), recording_id: Id, ...TrackPosition }),
+	z.strictObject({ mode: z.literal('new'), ...RecordingFields, ...TrackPosition })
+]);
+
+export const CreatedRecording = z.object({ recording: Recording });
+export const CreatedArtist = z.object({
+	artist: z.object({
+		id: Id,
+		display_name: Text.optional(),
+		kind: Text.optional(),
+		created_at: Timestamp.optional(),
+		updated_at: Timestamp.optional()
+	})
+});
+export const CreatedRelease = z.object({
+	release: z.object({
+		id: Id,
+		title: Title.optional(),
+		version_title: MaybeText.optional(),
+		release_date: MaybeText.optional(),
+		catalog_number: MaybeText.optional(),
+		upc: Text.optional(),
+		label_id: Id.optional(),
+		genre: MaybeText.optional(),
+		subgenre: MaybeText.optional(),
+		type: ReleaseType.optional(),
+		created_at: Timestamp.optional(),
+		updated_at: Timestamp.optional()
+	})
+});
