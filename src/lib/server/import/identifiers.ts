@@ -16,6 +16,24 @@ export function isValidGtin(code: string): boolean {
 	return (10 - (sum % 10)) % 10 === check;
 }
 
+/**
+ * One identity for a UPC/EAN however it is zero-padded: UPC-A (12 digits) where the code has
+ * one, otherwise EAN-13. A 14-digit form is read only when its indicator digit is zero.
+ * Null when the code is not a valid GTIN.
+ */
+export function canonicalGtin(code: string): string | null {
+	const short = /^0\d{13}$/.test(code) ? code.slice(1) : code;
+	if (!isValidGtin(short)) return null;
+	return short.length === 13 && short.startsWith('0') ? short.slice(1) : short;
+}
+
+/** Every form the catalogue can hold for one UPC/EAN: the canonical one and its padded twin. */
+export function gtinForms(code: string): string[] {
+	const canonical = canonicalGtin(code);
+	if (!canonical) return [code];
+	return canonical.length === 12 ? [canonical, '0' + canonical] : [canonical];
+}
+
 /** "06:16" or "1:02:03" to milliseconds; empty or malformed gives null. */
 export function parseDuration(raw: string): number | null {
 	const s = raw.trim();

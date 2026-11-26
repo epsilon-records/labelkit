@@ -122,3 +122,19 @@ it('rejects a truncated document before mapping catalogue data', () => {
 	expect(plan.issues.some((issue) => issue.level === 'error')).toBe(true);
 	expect(plan.releases.size).toBe(0);
 });
+
+it('reads zero-padded forms of one UPC/EAN as the same release', () => {
+	for (const padded of ['012345678905', '0012345678905', '00012345678905']) {
+		const source = xml().replace('<ICPN>012345678905<', '<ICPN>' + padded + '<');
+		expect(source).toContain(padded);
+		const plan = parseErnDocuments([{ name: 'padded.xml', text: source }]);
+		expect(plan.issues.filter((issue) => issue.level === 'error')).toEqual([]);
+		expect([...plan.releases.keys()]).toEqual(['012345678905']);
+	}
+	// A wrong check digit and a nonzero 14-digit indicator stay refused.
+	for (const refused of ['00012345678906', '10012345678902']) {
+		const source = xml().replace('<ICPN>012345678905<', '<ICPN>' + refused + '<');
+		const plan = parseErnDocuments([{ name: 'refused.xml', text: source }]);
+		expect(plan.issues.some((issue) => issue.message.includes('invalid UPC/EAN'))).toBe(true);
+	}
+});

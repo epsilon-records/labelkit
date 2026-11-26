@@ -85,6 +85,28 @@ describe('applyImport', () => {
 		expect(await db.select().from(rightsShares)).toHaveLength(0);
 	});
 
+	it('matches an existing release whose UPC/EAN is padded differently', async () => {
+		const snapshot = completeErnFixture();
+		snapshot.release.upc = '012345678905';
+		const text = generateErn(snapshot, testContext).xml!;
+		const ern = { ...ctx(false), source: 'ddex-ern' as const, fileName: 'fixture.xml' };
+		await applyImport(db, parseErnDocuments([{ name: 'fixture.xml', text }]), ern);
+		// The catalogue may hold the 13-digit form, as a CSV import stores it.
+		await db.update(releases).set({ upc: '0012345678905' });
+
+		for (const padded of ['012345678905', '0012345678905', '00012345678905']) {
+			const plan = parseErnDocuments([
+				{ name: 'fixture.xml', text: text.replace('<ICPN>012345678905<', '<ICPN>' + padded + '<') }
+			]);
+			const again = await applyImport(db, plan, ern);
+			expect(again.counts.releases).toMatchObject({ created: 0, unchanged: 1 });
+			expect(again.counts.tracks.created).toBe(0);
+		}
+		expect(await db.select({ upc: releases.upc }).from(releases)).toEqual([
+			{ upc: '0012345678905' }
+		]);
+	});
+
 	it('imports the catalog with an audit trail', async () => {
 		const plan = parseSymphonicInventory(SAMPLE);
 		const result = await applyImport(db, plan, ctx(false));

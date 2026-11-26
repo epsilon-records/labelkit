@@ -1,7 +1,7 @@
 import { SaxesParser } from 'saxes';
 import { create } from 'xmlbuilder2';
 import { ERN_NAMESPACE } from '../ddex/ern';
-import { isValidGtin, isValidIsrc, normalizeIsrc, partyMatchKey } from './identifiers';
+import { canonicalGtin, isValidIsrc, normalizeIsrc, partyMatchKey } from './identifiers';
 import type { ImportPlan, PlannedCredit, PlannedRecording, PlannedRelease } from './symphonic';
 
 export type ErnDocument = { name: string; text: string };
@@ -278,8 +278,9 @@ function parseDocument(document: ErnDocument, plan: ImportPlan) {
 	if (!releases.length) throw new InvalidErn('The message contains no release.');
 	for (const node of releases) {
 		const id = child(node, 'ReleaseId');
-		const upc = text(id, 'ICPN');
-		if (!isValidGtin(upc)) throw new InvalidErn('A release has a missing or invalid UPC/EAN.');
+		// Zero-padded forms of one UPC/EAN are the same release; a nonzero indicator is not.
+		const upc = canonicalGtin(text(id, 'ICPN'));
+		if (!upc) throw new InvalidErn('A release has a missing or invalid UPC/EAN.');
 		const references = children(node, 'ReleaseLabelReference');
 		const labelRefs = references.map((reference) =>
 			required(reference.textContent?.trim() ?? '', 'ReleaseLabelReference')
