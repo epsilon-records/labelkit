@@ -138,6 +138,68 @@ export const orgAuthSenders = pgTable(
 
 export type OrgAuthSender = typeof orgAuthSenders.$inferSelect;
 
+const HOST_FORMAT = String.raw`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`;
+const HASH_FORMAT = '^[0-9a-f]{64}$';
+
+/**
+ * A person's session on one label's own domain (knowledge labelkit 0051, 0054): it reaches that
+ * label and no other. The id is never stored, only its SHA-256, so a dump of this table holds no
+ * usable cookie. `expiresAt` is the absolute end (30 days); the session also ends after 7 days
+ * without use (`lastUsedAt`). RLS is on with no policy and no role but the owner has rights
+ * (migration 0039): only label-session.ts reads or writes it, on the owner connection.
+ */
+export const labelSessions = pgTable(
+	'label_sessions',
+	{
+		idHash: text('id_hash').primaryKey(),
+		userId: uuid('user_id').notNull(),
+		orgId: uuid('org_id')
+			.notNull()
+			.references(() => orgs.id, { onDelete: 'cascade' }),
+		/** The label's custom domain this session belongs to; lowercase, no port. */
+		host: text('host').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		revokedAt: timestamp('revoked_at', { withTimezone: true })
+	},
+	(t) => [
+		index('label_sessions_user_idx').on(t.userId),
+		index('label_sessions_org_idx').on(t.orgId),
+		index('label_sessions_host_idx').on(t.host),
+		index('label_sessions_expires_idx').on(t.expiresAt),
+		check('label_sessions_id_hash_format', sql`${t.idHash} ~ '${sql.raw(HASH_FORMAT)}'`),
+		check('label_sessions_host_format', sql`${t.host} ~ '${sql.raw(HOST_FORMAT)}'`)
+	]
+);
+
+/**
+ * The one-time ticket labelkit.co hands to a label's domain after sign-in: valid for 60 seconds,
+ * exchanged once for a label session. Only the ticket's SHA-256 is stored. Same access as
+ * label_sessions: no role but the owner.
+ */
+export const labelHandoffs = pgTable(
+	'label_handoffs',
+	{
+		ticketHash: text('ticket_hash').primaryKey(),
+		userId: uuid('user_id').notNull(),
+		orgId: uuid('org_id')
+			.notNull()
+			.references(() => orgs.id, { onDelete: 'cascade' }),
+		host: text('host').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		usedAt: timestamp('used_at', { withTimezone: true })
+	},
+	(t) => [
+		index('label_handoffs_expires_idx').on(t.expiresAt),
+		check('label_handoffs_ticket_hash_format', sql`${t.ticketHash} ~ '${sql.raw(HASH_FORMAT)}'`),
+		check('label_handoffs_host_format', sql`${t.host} ~ '${sql.raw(HOST_FORMAT)}'`)
+	]
+);
+
+export type LabelSession = typeof labelSessions.$inferSelect;
+
 export const memberships = pgTable(
 	'memberships',
 	{
