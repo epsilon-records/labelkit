@@ -158,6 +158,16 @@ describe('label sessions (database)', () => {
 			).toBeNull();
 		});
 
+		it('counts a use that came too soon after the stored one to be written', async () => {
+			const { sessionId } = await open();
+			// Used 59 seconds in: inside the touch interval, so the stored last use stays at the start.
+			const soon = after(TOUCH_INTERVAL_MS - 1000);
+			expect(await resolveLabelSession(db, { sessionId, host: HOST, now: soon })).not.toBeNull();
+			// 7 days and 1 second after the start is less than 7 days after that use.
+			const later = after(SESSION_IDLE_MS + 1000);
+			expect(await resolveLabelSession(db, { sessionId, host: HOST, now: later })).not.toBeNull();
+		});
+
 		it('ends 30 days after it began, however often it is used', async () => {
 			const { sessionId } = await open();
 			let now = T0;
