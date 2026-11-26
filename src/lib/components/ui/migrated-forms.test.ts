@@ -128,6 +128,40 @@ describe('import form', () => {
 		expect(input).toContain('data-slot="input"');
 		expectSubmitButtons(body);
 	});
+
+	it('carries the dry run organisation and file digest to the confirm step', () => {
+		const zero = { created: 0, updated: 0, unchanged: 0 };
+		const form = {
+			stage: 'previewed',
+			format: 'ern',
+			fileName: 'release.xml',
+			sha256: 'a'.repeat(64),
+			orgId: 'org-previewed',
+			summary: {
+				rows: 1,
+				releases: 1,
+				recordings: 1,
+				parties: 1,
+				labels: 1,
+				errors: 0,
+				warnings: 0
+			},
+			counts: {
+				labels: zero,
+				parties: zero,
+				recordings: zero,
+				releases: zero,
+				tracks: zero,
+				credits: zero
+			},
+			issues: [],
+			moreIssues: 0
+		};
+		const body = html(ImportPage, { data: { runs: [] }, form });
+		expect(body).toContain('action="?/apply"');
+		expect(body).toMatch(/<input[^>]*name="orgId"[^>]*value="org-previewed"/);
+		expect(body).toMatch(/<input[^>]*name="sha256"[^>]*value="a{64}"/);
+	});
 });
 
 const members = {

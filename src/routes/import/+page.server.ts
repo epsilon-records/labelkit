@@ -48,6 +48,12 @@ async function readCsv(form: FormData) {
 async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	const m = requireScope(locals, 'catalog:write');
 	const form = await request.formData();
+	// A dry run counts changes against one organisation's catalogue; confirm applies to that one.
+	if (!dryRun && form.get('orgId') !== m.orgId) {
+		return fail(409, {
+			error: 'The active organisation changed since the dry run. Run the dry run again.'
+		});
+	}
 	const isErn = form.get('format') === 'ern';
 	let name: string;
 	let sha256: string;
@@ -90,6 +96,7 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	const base = {
 		fileName: name,
 		sha256,
+		orgId: m.orgId,
 		summary,
 		format: isErn ? ('ern' as const) : ('csv' as const),
 		issues: isErn ? plan.issues : plan.issues.slice(0, 200),
