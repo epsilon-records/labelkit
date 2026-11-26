@@ -354,7 +354,12 @@ export function generateErn(
 			`rights.${right.id}`,
 			'Ownership and its territorial scope need an agreed rights-controller mapping; no deal is inferred.'
 		);
-	if (context.success && (context.data.dealScope.trim() || context.data.territoryScope.trim()))
+	const rawScope = input as Partial<ErnContext> | null | undefined;
+	if (
+		[rawScope?.dealScope, rawScope?.territoryScope].some(
+			(value) => typeof value === 'string' && value.trim() !== ''
+		)
+	)
 		add(
 			'unmapped',
 			'context.scope',

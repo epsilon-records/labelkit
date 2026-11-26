@@ -261,3 +261,18 @@ it('accepts the ERN language pattern on both the release and recording', () => {
 		s.recordings[0].metadataLanguage = 'en-1234';
 	}, 'metadataLanguage');
 });
+
+it('reports unsupported scope alongside an invalid DPID', () => {
+	const result = run(completeErnFixture(), {
+		...testContext,
+		recipientDpid: 'invalid',
+		territoryScope: 'GB'
+	});
+	expect(result.xml).toBeNull();
+	expect(result.findings).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ kind: 'invalid', path: 'context.recipientDpid' }),
+			expect.objectContaining({ kind: 'unmapped', path: 'context.scope' })
+		])
+	);
+});
