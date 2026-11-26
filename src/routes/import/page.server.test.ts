@@ -1,4 +1,6 @@
 import { expect, it, vi } from 'vitest';
+import { ERN_NAMESPACE } from '#lib/server/ddex/ern.js';
+import { MAX_ERN_FINDINGS_BYTES } from '#lib/server/import/ern.js';
 import { actions } from './+page.server';
 
 const A = '00000000-0000-7000-8000-00000000000a';
@@ -56,4 +58,22 @@ it('lets a confirm for the same organisation through to the file check', async (
 		status: 400,
 		data: { error: expect.stringContaining('file changed') }
 	});
+});
+
+it('refuses an ERN dry run whose findings are too large to send back', async () => {
+	const text =
+		'<ern:NewReleaseMessage xmlns:ern="' +
+		ERN_NAMESPACE +
+		'">' +
+		'<ProprietaryId/>'.repeat(10) +
+		'</ern:NewReleaseMessage>';
+	const name = 'a'.repeat(MAX_ERN_FINDINGS_BYTES / 5) + '.xml';
+	const { call, db } = event('preview', A, { format: 'ern', file: new File([text], name) });
+	const result = await call();
+	expect(result).toMatchObject({
+		status: 422,
+		data: { error: expect.stringContaining('too many findings') }
+	});
+	expect(JSON.stringify(result).length).toBeLessThan(1000);
+	expect(db).not.toHaveBeenCalled();
 });

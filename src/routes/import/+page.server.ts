@@ -13,7 +13,7 @@ import {
 	parseSymphonicInventory,
 	summarizePlan
 } from '#lib/server/import/symphonic.js';
-import { MAX_ERN_FINDINGS, parseErnDocuments } from '#lib/server/import/ern.js';
+import { findingsOverBudget, MAX_ERN_FINDINGS, parseErnDocuments } from '#lib/server/import/ern.js';
 import {
 	ErnUploadError,
 	MAX_ERN_UPLOAD_BYTES,
@@ -76,7 +76,8 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 			if (e instanceof ErnUploadError) return fail(400, { error: e.message });
 			throw e;
 		}
-		if (plan.issues.length > MAX_ERN_FINDINGS) {
+		// Bounded by count and by size: a few findings can still carry long file names and paths.
+		if (plan.issues.length > MAX_ERN_FINDINGS || findingsOverBudget(plan.issues)) {
 			return fail(422, {
 				error: 'The upload has too many findings to review. Split it into smaller batches.'
 			});

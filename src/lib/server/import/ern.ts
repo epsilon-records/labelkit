@@ -11,6 +11,18 @@ export const MAX_ERN_ELEMENTS = 20000;
 export const MAX_ERN_DEPTH = 32;
 /** The most findings one upload may produce; the import page refuses to list more. */
 export const MAX_ERN_FINDINGS = 1000;
+/** The most finding text, in UTF-8 bytes, one upload may send back to the import page. */
+export const MAX_ERN_FINDINGS_BYTES = 500_000;
+
+/** Whether the findings' text is past that budget; it stops counting at the first byte over. */
+export function findingsOverBudget(issues: ImportPlan['issues']): boolean {
+	let bytes = 0;
+	for (const issue of issues) {
+		bytes += Buffer.byteLength(issue.message);
+		if (bytes > MAX_ERN_FINDINGS_BYTES) return true;
+	}
+	return false;
+}
 
 class TooManyFindings extends Error {}
 
