@@ -6,6 +6,7 @@ import {
 	HANDOFF_TTL_MS,
 	SESSION_ABSOLUTE_MS,
 	SESSION_IDLE_MS,
+	TOUCH_INTERVAL_MS,
 	exchangeHandoff,
 	mintHandoff,
 	purgeLabelSessions,
@@ -152,7 +153,7 @@ describe('label sessions (database)', () => {
 				await resolveLabelSession(db, {
 					sessionId: gone.sessionId,
 					host: HOST,
-					now: after(SESSION_IDLE_MS + 1000)
+					now: after(SESSION_IDLE_MS + TOUCH_INTERVAL_MS + 1000)
 				})
 			).toBeNull();
 		});
@@ -235,11 +236,28 @@ describe('label sessions (database)', () => {
 			expect(await resolveLabelSession(db, { sessionId, host: HOST, now: T0 })).toBeNull();
 		});
 
-		it('a domain that is not active gives no session', async () => {
+		it('a pending replacement domain does not end sessions on the current one', async () => {
+			const { sessionId } = await open();
+			await db.update(orgs).set({ domainStatus: 'awaiting_dns' }).where(eq(orgs.id, orgA));
+			expect(await resolveLabelSession(db, { sessionId, host: HOST, now: T0 })).not.toBeNull();
 			const ticket = await mintHandoff(db, { userId: MEMBER, orgId: orgA, host: HOST, now: T0 });
-			await db.update(orgs).set({ domainStatus: 'failed' }).where(eq(orgs.id, orgA));
-			expect(await exchangeHandoff(db, { ticket, host: HOST, now: T0 })).toBeNull();
+			expect(await exchangeHandoff(db, { ticket, host: HOST, now: T0 })).not.toBeNull();
 			await db.update(orgs).set({ domainStatus: 'active' }).where(eq(orgs.id, orgA));
+		});
+
+		it('removing the domain ends its sessions and refuses new tickets', async () => {
+			const { sessionId } = await open();
+			const ticket = await mintHandoff(db, { userId: MEMBER, orgId: orgA, host: HOST, now: T0 });
+			await db
+				.update(orgs)
+				.set({ customDomain: null, domainStatus: null })
+				.where(eq(orgs.id, orgA));
+			expect(await resolveLabelSession(db, { sessionId, host: HOST, now: T0 })).toBeNull();
+			expect(await exchangeHandoff(db, { ticket, host: HOST, now: T0 })).toBeNull();
+			await db
+				.update(orgs)
+				.set({ customDomain: HOST, domainStatus: 'active' })
+				.where(eq(orgs.id, orgA));
 		});
 
 		it('revokes by person and by person-and-label', async () => {
@@ -276,9 +294,17 @@ describe('label sessions (database)', () => {
 
 	it('is closed to every database role but the owner', async () => {
 		for (const table of ['label_sessions', 'label_handoffs']) {
-			await expect(
-				asUser(db, MEMBER, (tx) => tx.execute(sql.raw(`select count(*) from public.${table}`)))
-			).rejects.toBeTruthy();
+			const failure = await asUser(db, MEMBER, async (tx) => {
+				const [role] = (await tx.execute(sql`select current_user as role`)) as unknown as {
+					role: string;
+				}[];
+				expect(role.role).toBe('labelkit_app');
+				return tx.execute(sql.raw(`select count(*) from public.${table}`)).then(
+					() => null,
+					(e: { code?: string; cause?: { code?: string } }) => e
+				);
+			});
+			expect(failure?.code ?? failure?.cause?.code).toBe('42501');
 		}
 	});
 });

@@ -3,6 +3,7 @@ import {
 	HANDOFF_TTL_MS,
 	SESSION_ABSOLUTE_MS,
 	SESSION_IDLE_MS,
+	TOUCH_INTERVAL_MS,
 	handoffExpiry,
 	idleCutoff,
 	newToken,
@@ -44,7 +45,9 @@ describe('lifetimes', () => {
 		expect(SESSION_ABSOLUTE_MS).toBe(30 * 24 * 3600 * 1000);
 		expect(SESSION_IDLE_MS).toBe(7 * 24 * 3600 * 1000);
 		expect(sessionExpiry(NOW).toISOString()).toBe('2026-12-26T08:00:00.000Z');
-		expect(idleCutoff(NOW).toISOString()).toBe('2026-11-19T08:00:00.000Z');
+		expect(TOUCH_INTERVAL_MS).toBe(60_000);
+		// 7 days, plus the minute a use may go unstored.
+		expect(idleCutoff(NOW).toISOString()).toBe('2026-11-19T07:59:00.000Z');
 	});
 });
 

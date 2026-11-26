@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { and, eq, gt, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lt, lte, or, type SQL } from 'drizzle-orm';
 import type { Database } from '#lib/server/audit.js';
 import { labelHandoffs, labelSessions, memberships, orgs } from '#lib/server/db/schema.js';
 
@@ -42,7 +42,13 @@ export function normaliseHost(host: string): string {
 
 export const handoffExpiry = (now: Date) => new Date(now.getTime() + HANDOFF_TTL_MS);
 export const sessionExpiry = (now: Date) => new Date(now.getTime() + SESSION_ABSOLUTE_MS);
-export const idleCutoff = (now: Date) => new Date(now.getTime() - SESSION_IDLE_MS);
+/**
+ * The idle limit is 7 days from the last stored use, and a use is stored at most once per
+ * TOUCH_INTERVAL_MS, so a use up to a minute before that can be missing. The check allows for it:
+ * the idle timeout is 7 days plus at most one minute, and never ends a session early.
+ */
+export const idleCutoff = (now: Date) =>
+	new Date(now.getTime() - SESSION_IDLE_MS - TOUCH_INTERVAL_MS);
 
 export type HandoffInput = { userId: string; orgId: string; host: string; now?: Date };
 
@@ -76,7 +82,7 @@ export type ExchangedSession = {
  * Trade a ticket for a session on `host`, once. The ticket is used in the same statement that checks
  * it (`used_at IS NULL`, not expired, same host), so two requests with one ticket cannot both win. A
  * ticket for another host is left alone. The person must still belong to the label, the label must be
- * open and `host` must still be its active custom domain, or no session is made.
+ * open and `host` must still be its custom domain, or no session is made.
  */
 export async function exchangeHandoff(
 	db: Database,
@@ -107,14 +113,7 @@ export async function exchangeHandoff(
 				memberships,
 				and(eq(memberships.orgId, orgs.id), eq(memberships.userId, used.userId))
 			)
-			.where(
-				and(
-					eq(orgs.id, used.orgId),
-					isNull(orgs.closedAt),
-					eq(orgs.customDomain, host),
-					eq(orgs.domainStatus, 'active')
-				)
-			);
+			.where(and(eq(orgs.id, used.orgId), isNull(orgs.closedAt), eq(orgs.customDomain, host)));
 		if (!live) return null;
 
 		const { token, hash } = newToken();
@@ -137,7 +136,7 @@ export type ResolvedLabelSession = { userId: string; orgId: string; role: string
 /**
  * The session behind a cookie value on `host`, or null. It must be on this host, not revoked, within
  * both lifetimes, and its person must still belong to the label, which must be open and still own
- * `host` as its active custom domain. Those last checks make removal, closing and a domain change end
+ * `host` as its custom domain. Those last checks make removal, closing and a domain change end
  * a session on the next request even before anything revokes it. A hit refreshes `lastUsedAt`.
  */
 export async function resolveLabelSession(
@@ -170,13 +169,21 @@ export async function resolveLabelSession(
 				gt(labelSessions.expiresAt, now),
 				gt(labelSessions.lastUsedAt, idleCutoff(now)),
 				isNull(orgs.closedAt),
-				eq(orgs.customDomain, host),
-				eq(orgs.domainStatus, 'active')
+				eq(orgs.customDomain, host)
 			)
 		);
 	if (!row) return null;
 	if (now.getTime() - row.lastUsedAt.getTime() >= TOUCH_INTERVAL_MS) {
-		await db.update(labelSessions).set({ lastUsedAt: now }).where(eq(labelSessions.idHash, idHash));
+		// Checked again against the stored row, so two requests that both saw the old value write once.
+		await db
+			.update(labelSessions)
+			.set({ lastUsedAt: now })
+			.where(
+				and(
+					eq(labelSessions.idHash, idHash),
+					lte(labelSessions.lastUsedAt, new Date(now.getTime() - TOUCH_INTERVAL_MS))
+				)
+			);
 	}
 	return { userId: row.userId, orgId: row.orgId, role: row.role, expiresAt: row.expiresAt };
 }
