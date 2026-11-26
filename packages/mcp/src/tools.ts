@@ -1,7 +1,15 @@
+import { randomUUID } from 'node:crypto';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { ApiError, TransportError, type LabelKitApi, type Query } from './client.js';
 import {
+	AddTrackBody,
+	CreatedArtist,
+	CreatedRecording,
+	CreatedRelease,
+	CreateArtistBody,
+	CreateRecordingBody,
+	CreateReleaseBody,
 	PageInput,
 	RecordingAnalysis,
 	RecordingDetail,
@@ -14,10 +22,13 @@ import {
 } from './schemas.js';
 
 /**
- * The six read-only tools. Each is one GET on the /v1 API: the input becomes a path and query,
+ * Each tool makes one /v1 request: the input becomes a path and query or a JSON body,
  * the JSON answer is checked against the output schema and returned as `structuredContent`,
  * with the same JSON as a text block for clients that read only text.
  */
+
+type Request =
+	{ path: string; query?: Query } | { path: string; body: object; idempotencyKey: string };
 
 export type ToolDefinition<
 	I extends z.ZodRawShape = z.ZodRawShape,
@@ -28,8 +39,9 @@ export type ToolDefinition<
 	description: string;
 	inputSchema: z.ZodObject<I>;
 	outputSchema: O;
+	write?: true;
 	/** The API call for this input. */
-	request(input: z.infer<z.ZodObject<I>>): { path: string; query?: Query };
+	request(input: z.infer<z.ZodObject<I>>): Request;
 };
 
 function define<I extends z.ZodRawShape, O extends z.ZodType>(
@@ -42,6 +54,75 @@ function define<I extends z.ZodRawShape, O extends z.ZodType>(
 ): ToolDefinition<I, O> {
 	return { name, title, description, inputSchema: z.object(input), outputSchema, request };
 }
+
+const IdempotencyKey = z
+	.string()
+	.regex(/^[!-~]{1,200}$/)
+	.optional()
+	.describe('Pass the same key when retrying a create. If omitted, a new key is generated.');
+
+const WRITE_TOOLS = [
+	{
+		...define(
+			'create_release',
+			'Create Release',
+			'Create a release. Requires catalog:write.',
+			{ body: CreateReleaseBody, idempotency_key: IdempotencyKey },
+			CreatedRelease,
+			({ body, idempotency_key }) => ({
+				path: '/v1/releases',
+				body,
+				idempotencyKey: idempotency_key ?? randomUUID()
+			})
+		),
+		write: true
+	},
+	{
+		...define(
+			'add_track',
+			'Add Track',
+			'Add an existing or new recording to a release at the given disc and position. Requires catalog:write.',
+			{ release_id: ReleaseId, body: AddTrackBody, idempotency_key: IdempotencyKey },
+			CreatedRecording,
+			({ release_id, body, idempotency_key }) => ({
+				path: `/v1/releases/${release_id}/tracks`,
+				body,
+				idempotencyKey: idempotency_key ?? randomUUID()
+			})
+		),
+		write: true
+	},
+	{
+		...define(
+			'create_recording',
+			'Create Recording',
+			'Create a standalone recording. Requires catalog:write.',
+			{ body: CreateRecordingBody, idempotency_key: IdempotencyKey },
+			CreatedRecording,
+			({ body, idempotency_key }) => ({
+				path: '/v1/recordings',
+				body,
+				idempotencyKey: idempotency_key ?? randomUUID()
+			})
+		),
+		write: true
+	},
+	{
+		...define(
+			'create_artist',
+			'Create Artist',
+			'Create an artist. Requires catalog:write.',
+			{ body: CreateArtistBody, idempotency_key: IdempotencyKey },
+			CreatedArtist,
+			({ body, idempotency_key }) => ({
+				path: '/v1/artists',
+				body,
+				idempotencyKey: idempotency_key ?? randomUUID()
+			})
+		),
+		write: true
+	}
+] as const;
 
 export const TOOLS = [
 	define(
@@ -98,7 +179,8 @@ export const TOOLS = [
 		{ recording_id: RecordingId },
 		RecordingAnalysis,
 		({ recording_id }) => ({ path: `/v1/recordings/${recording_id}/analysis` })
-	)
+	),
+	...WRITE_TOOLS
 ] as const;
 
 function failure(text: string): CallToolResult {
@@ -106,12 +188,12 @@ function failure(text: string): CallToolResult {
 }
 
 /** An API error as a tool error, so the model can read the code and correct itself. */
-function describeApiError(e: ApiError): string {
+function describeApiError(e: ApiError, write: boolean): string {
 	const hint =
 		e.status === 401
 			? ' Check LABELKIT_API_KEY: it may be revoked.'
 			: e.status === 403
-				? ' The API key needs the catalog:read scope.'
+				? ` The API key needs the catalog:${write ? 'write' : 'read'} scope.`
 				: '';
 	return `LabelKit API error ${e.status} ${e.code}: ${e.message}${hint}`;
 }
@@ -123,8 +205,14 @@ export async function runTool(
 	input: unknown
 ): Promise<CallToolResult> {
 	try {
-		const { path, query } = tool.request(tool.inputSchema.parse(input));
-		const body = await api.get(path, query);
+		const request = tool.request(tool.inputSchema.parse(input));
+		let body: unknown;
+		if ('body' in request) {
+			if (!api.post) return failure('This server does not support catalogue writes.');
+			body = await api.post(request.path, request.body, request.idempotencyKey);
+		} else {
+			body = await api.get(request.path, request.query);
+		}
 		const parsed = tool.outputSchema.safeParse(body);
 		if (!parsed.success) {
 			return failure(
@@ -136,7 +224,7 @@ export async function runTool(
 			structuredContent: parsed.data as Record<string, unknown>
 		};
 	} catch (e) {
-		if (e instanceof ApiError) return failure(describeApiError(e));
+		if (e instanceof ApiError) return failure(describeApiError(e, tool.write === true));
 		if (e instanceof TransportError) return failure(e.message);
 		if (e instanceof z.ZodError) return failure(`Invalid arguments: ${z.prettifyError(e)}`);
 		return failure('The tool failed unexpectedly.');

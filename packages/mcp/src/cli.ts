@@ -13,7 +13,7 @@ const say = (text: string) => process.stderr.write(`labelkit-co: ${text}\n`);
 
 const HELP = `labelkit-co ${VERSION}: LabelKit MCP server over stdio.
 
-Set ${ENV_API_KEY} to a LabelKit API key (the catalog:read scope is enough), then point an MCP client at this command.
+Set ${ENV_API_KEY} to a LabelKit API key (catalog:read for reads, plus catalog:write for creates), then point an MCP client at this command.
 Optional: LABELKIT_API_URL (default https://api.labelkit.co).
 `;
 

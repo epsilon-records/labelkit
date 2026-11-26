@@ -8,7 +8,7 @@ It is a thin client over the public LabelKit API (`https://api.labelkit.co/v1`, 
 
 ## Install
 
-Create an API key on your label's API page in LabelKit. Give it only the `catalog:read` scope: every tool needs that and nothing else. A key sees only its own label.
+Create an API key on your label's API page in LabelKit. Grant `catalog:read` for startup and read tools. Grant `catalog:write` as well only if you intend to use the create tools. A key sees only its own label.
 
 Build it from this repository (`pnpm install && pnpm --filter labelkit-co build`), then add the server to your MCP client's configuration, pointing at the built file:
 
@@ -45,7 +45,7 @@ The key is read only from the environment. It is never a tool argument, is not l
 
 ## Tools
 
-All six are read-only (`readOnlyHint: true`, `openWorldHint: false`) and return `structuredContent` that matches the tool's `outputSchema`, plus the same JSON as text.
+The six catalogue read tools are annotated as read-only (`readOnlyHint: true`, `openWorldHint: false`) and return `structuredContent` that matches the tool's `outputSchema`, plus the same JSON as text.
 
 | Tool                     | Title                  | Does                                                                                           |
 | ------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------- |
@@ -58,6 +58,17 @@ All six are read-only (`readOnlyHint: true`, `openWorldHint: false`) and return 
 
 API errors come back as tool errors (`isError: true`) with the API's code and message, such as `not_found`.
 
+The four create tools require `catalog:write` and return the API's created record.
+
+| Tool               | Arguments                                                               |
+| ------------------ | ----------------------------------------------------------------------- |
+| `create_release`   | `body` with title, UPC and label ID                                     |
+| `add_track`        | `release_id` and `body` with mode, disc, position and recording details |
+| `create_recording` | `body` with title and ISRC                                              |
+| `create_artist`    | `body` with display name                                                |
+
+Pass the same `idempotency_key` to retry a create safely. The server generates a new key when none is supplied.
+
 ## Develop
 
 ```sh
@@ -67,7 +78,7 @@ pnpm --filter labelkit-co build
 pnpm --filter labelkit-co test:e2e    # runs dist/cli.js over stdio against a fake API
 ```
 
-`buildServer(api)` in `src/server.ts` is the server factory: it takes anything that can answer the `/v1` reads, so the same tools can later be hosted remotely. The tests include a drift check that each tool's output schema equals the response schema in `docs/openapi.yaml`.
+`buildServer(api)` in `src/server.ts` is the server factory: it takes anything that can answer the `/v1` requests, so the same tools can later be hosted remotely. The tests include a drift check that each tool's output schema equals the response schema in `docs/openapi.yaml`.
 
 ## Releasing
 

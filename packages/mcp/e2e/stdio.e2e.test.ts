@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { responseSchema, sample } from '../src/spec-fixtures.js';
 import { bodyFor, KEY } from '../src/test-support.js';
 
 /** The built package, started the way `npx labelkit-co` starts it, against a fake API on localhost. */
@@ -13,6 +14,8 @@ const CLI = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 let api: Server;
 let url: string;
 const seen: IncomingMessage[] = [];
+const createdArtist = sample(responseSchema('/v1/artists', true));
+const artistRequests: string[] = [];
 let answerKey: string | null = KEY;
 
 beforeAll(async () => {
@@ -24,6 +27,17 @@ beforeAll(async () => {
 			return void res.end(
 				JSON.stringify({ error: { code: 'unauthorized', message: 'Missing or invalid API key.' } })
 			);
+		}
+		if (req.method === 'POST' && req.url === '/v1/artists') {
+			let body = '';
+			req.setEncoding('utf8');
+			req.on('data', (chunk: string) => (body += chunk));
+			req.on('end', () => {
+				artistRequests.push(body);
+				res.statusCode = 201;
+				res.end(JSON.stringify(createdArtist));
+			});
+			return;
 		}
 		res.end(JSON.stringify(bodyFor('/v1/releases')));
 	});
@@ -73,7 +87,7 @@ describe('dist/cli.js over stdio', () => {
 		expect(r.stderr).not.toContain(KEY);
 	});
 
-	it('serves the six tools, checks the key once at startup, and calls the API with it', async () => {
+	it('reads and creates over stdio after checking the key once at startup', async () => {
 		seen.length = 0;
 		const transport = new StdioClientTransport({
 			command: process.execPath,
@@ -85,16 +99,31 @@ describe('dist/cli.js over stdio', () => {
 		try {
 			expect(client.getServerVersion()).toMatchObject({ name: 'labelkit', title: 'LabelKit' });
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(6);
+			expect(tools).toHaveLength(10);
 
 			const result = await client.callTool({ name: 'list_releases', arguments: { limit: 5 } });
 			expect(result.isError).toBeFalsy();
 			expect(result.structuredContent).toEqual(bodyFor('/v1/releases'));
+
+			const created = await client.callTool({
+				name: 'create_artist',
+				arguments: { body: { display_name: 'Test Artist' }, idempotency_key: 'stdio-artist' }
+			});
+			expect(created.isError).toBeFalsy();
+			expect(created.structuredContent).toEqual(createdArtist);
 		} finally {
 			await client.close();
 		}
 		// The startup check, then the tool call.
-		expect(seen.map((r) => r.url)).toEqual(['/v1/releases?limit=1', '/v1/releases?limit=5']);
+		expect(seen.map((r) => r.url)).toEqual([
+			'/v1/releases?limit=1',
+			'/v1/releases?limit=5',
+			'/v1/artists'
+		]);
+		expect(seen[2]?.headers['idempotency-key']).toBe('stdio-artist');
+		expect(artistRequests.map((body) => JSON.parse(body))).toEqual([
+			{ display_name: 'Test Artist' }
+		]);
 		for (const r of seen) expect(r.headers.authorization).toBe(`Bearer ${KEY}`);
 	});
 });
