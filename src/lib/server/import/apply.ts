@@ -175,11 +175,14 @@ export async function applyImport(
 			const upcs = [
 				...new Set([...plan.releases.keys()].flatMap((upc) => [upc, ...gtinForms(upc)]))
 			];
+			// Locked, as a manual track add locks its release: the track positions read below then
+			// hold until this import has written its own.
 			const existingRels = upcs.length
 				? await tx
 						.select()
 						.from(releases)
 						.where(and(eq(releases.orgId, orgId), inArray(releases.upc, upcs)))
+						.for('update')
 				: [];
 			const relByUpc = new Map(existingRels.map((r) => [r.upc, r]));
 			const relByGtin = new Map(existingRels.map((r) => [canonicalGtin(r.upc) ?? r.upc, r]));

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	auditLog,
 	credits,
@@ -105,6 +106,47 @@ describe('applyImport', () => {
 		expect(await db.select({ upc: releases.upc }).from(releases)).toEqual([
 			{ upc: '0012345678905' }
 		]);
+	});
+
+	it('reports a track added while it waited for the release as a track conflict', async () => {
+		const snapshot = completeErnFixture();
+		snapshot.release.upc = '012345678905';
+		const ern = { ...ctx(false), source: 'ddex-ern' as const, fileName: 'fixture.xml' };
+		const parse = () =>
+			parseErnDocuments([{ name: 'fixture.xml', text: generateErn(snapshot, testContext).xml! }]);
+		await applyImport(db, parse(), ern);
+		const [release] = await db.select().from(releases);
+		const [other] = await db
+			.insert(recordings)
+			.values({ orgId, isrc: 'ZZTST2600009', title: 'Other recording' })
+			.returning();
+		// The next message adds disc 2, position 1 to the same release.
+		snapshot.tracks.push({ ...snapshot.tracks[0], disc: 2 });
+		const plan = parse();
+
+		let importing: Promise<unknown> = Promise.resolve();
+		// A manual track add holds the release while it checks and fills that same position.
+		await db.transaction(async (holder) => {
+			await holder.select().from(releases).where(eq(releases.id, release.id)).for('update');
+			importing = applyImport(db, plan, ern);
+			importing.catch(() => {});
+			await vi.waitFor(
+				async () => {
+					const [waiting] = await db.execute<{ n: number }>(
+						sql`select count(*)::int as n from pg_stat_activity
+							where datname = current_database() and wait_event_type = 'Lock'`
+					);
+					expect(waiting.n).toBe(1);
+				},
+				{ timeout: 5000 }
+			);
+			await holder
+				.insert(releaseTracks)
+				.values({ orgId, releaseId: release.id, recordingId: other.id, disc: 2, position: 1 });
+		});
+		await expect(importing).rejects.toBeInstanceOf(ImportTrackConflict);
+		expect(await db.select().from(releaseTracks)).toHaveLength(2);
+		expect(await db.select().from(importRuns)).toHaveLength(1);
 	});
 
 	it('imports the catalog with an audit trail', async () => {
