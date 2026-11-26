@@ -73,6 +73,14 @@ export const LEGACY_RESERVE_MS = HOOK_BUDGET_MS - BRANDING_BUDGET_MS;
 /** What the return-address check leaves for the send itself (the Resend send, see above). */
 export const SEND_RESERVE_MS = 2200;
 
+/**
+ * What the return-address check leaves after its lookups run out: the send plus a branding
+ * allowance. A label that was found but whose membership read ran out the whole allowance must
+ * still get its branding step (which needs SEND_RESERVE_MS left and then up to BRANDING_BUDGET_MS),
+ * or the old path would look membership up again with too little time and answer 500.
+ */
+export const RETURN_ADDRESS_RESERVE_MS = SEND_RESERVE_MS + BRANDING_BUDGET_MS;
+
 export type HookConfig = {
 	hookSecret: string | undefined;
 	keys: Record<SenderId, string | undefined>;
@@ -212,7 +220,7 @@ export async function handleSendEmailHook(request: Request, deps: HookDeps): Pro
 				lookups,
 				user.id,
 				parsed.data.email_data.redirect_to,
-				() => remaining() - SEND_RESERVE_MS,
+				() => remaining() - RETURN_ADDRESS_RESERVE_MS,
 				(l) => log({ ...base, ...l })
 			);
 	const redirectTo = checked.redirectTo;
