@@ -111,8 +111,11 @@ const validText = (value: unknown): value is string =>
 		);
 	});
 const anchor = (prefix: string, id: string) => `${prefix}${id}`;
-const displayTitle = (row: Title) =>
-	row.versionTitle ? `${row.title} (${row.versionTitle})` : row.title;
+const displayTitle = (row: Title) => {
+	if (!row.versionTitle) return row.title;
+	const suffix = ` (${row.versionTitle})`;
+	return row.title.trimEnd().endsWith(suffix) ? row.title : row.title + suffix;
+};
 const duration = (ms: number) =>
 	`PT${Math.floor(ms / 1000)}${ms % 1000 ? `.${String(ms % 1000).padStart(3, '0')}` : ''}S`;
 

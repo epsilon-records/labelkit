@@ -239,3 +239,12 @@ it('uses the same escaping for copyright text and attributes without adding new 
 	numeric.ele('Text').txt('&#65;');
 	expect(serializeErnXml(numeric)).toContain('&amp;#65;');
 });
+
+it('does not duplicate a version already in the display title', () => {
+	const snapshot = completeErnFixture();
+	snapshot.release.title = 'Release (Radio Edit)';
+	snapshot.release.versionTitle = 'Radio Edit';
+	const xml = run(snapshot).xml!;
+	expect(xml).toContain('<DisplayTitleText>Release (Radio Edit)</DisplayTitleText>');
+	expect(xml).toContain('<SubTitle>Radio Edit</SubTitle>');
+});
