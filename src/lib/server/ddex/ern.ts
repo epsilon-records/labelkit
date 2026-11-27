@@ -97,6 +97,9 @@ const RECORDING_TYPES = new Set([
 	'NonMusicalWorkSoundRecording',
 	'SpokenWordSoundRecording'
 ]);
+// ERN 4.3 LanguageAndScriptCode pattern from the release-notification schema.
+const LANGUAGE_AND_SCRIPT =
+	/^[a-zA-Z]{2,3}(?:-[a-zA-Z]+)?(?:-[a-zA-Z]{2}|-[0-9]{3})?(?:-[a-zA-Z][a-zA-Z0-9]{4,})?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const validText = (value: unknown): value is string =>
 	typeof value === 'string' &&
@@ -111,8 +114,11 @@ const validText = (value: unknown): value is string =>
 		);
 	});
 const anchor = (prefix: string, id: string) => `${prefix}${id}`;
-const displayTitle = (row: Title) =>
-	row.versionTitle ? `${row.title} (${row.versionTitle})` : row.title;
+const displayTitle = (row: Title) => {
+	if (!row.versionTitle) return row.title;
+	const suffix = ` (${row.versionTitle})`;
+	return row.title.trimEnd().endsWith(suffix) ? row.title : row.title + suffix;
+};
 const duration = (ms: number) =>
 	`PT${Math.floor(ms / 1000)}${ms % 1000 ? `.${String(ms % 1000).padStart(3, '0')}` : ''}S`;
 
@@ -265,12 +271,12 @@ export function generateErn(
 			add('invalid', `${path}.title`, 'Valid title and version text are required.');
 		if (
 			(path === 'release' || row.metadataLanguage) &&
-			(!row.metadataLanguage || !/^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$/.test(row.metadataLanguage))
+			(!row.metadataLanguage || !LANGUAGE_AND_SCRIPT.test(row.metadataLanguage))
 		)
 			add(
 				'missing_required',
 				`${path}.metadataLanguage`,
-				'Metadata language is missing from the catalogue.'
+				'Metadata language is missing or does not match ERN 4.3.'
 			);
 		if (!row.parentalWarning || !WARNINGS.has(row.parentalWarning))
 			add(
@@ -348,7 +354,12 @@ export function generateErn(
 			`rights.${right.id}`,
 			'Ownership and its territorial scope need an agreed rights-controller mapping; no deal is inferred.'
 		);
-	if (context.success && (context.data.dealScope.trim() || context.data.territoryScope.trim()))
+	const rawScope = input as Partial<ErnContext> | null | undefined;
+	if (
+		[rawScope?.dealScope, rawScope?.territoryScope].some(
+			(value) => typeof value === 'string' && value.trim() !== ''
+		)
+	)
 		add(
 			'unmapped',
 			'context.scope',

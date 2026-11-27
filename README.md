@@ -39,6 +39,8 @@ drizzle/                    SQL migrations (RLS, append-only audit log, same-org
 
 ## Development
 
+Use Node.js 22.15.0 or later. The cold-start budget probe uses Node’s synchronous module hooks.
+
 ```bash
 pnpm install
 cp .env.example .env        # enough for `pnpm build`; sign-in needs the real publishable key

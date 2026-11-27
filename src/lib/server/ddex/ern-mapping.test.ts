@@ -94,10 +94,21 @@ it('M06: two discs retain position 1, with one shared resource and typed compone
 	expect(create(xml).filter((n) => n.node.nodeName === 'SoundRecording', false, true)).toHaveLength(
 		1
 	);
-	expect(
-		create(xml).filter((n) => n.node.nodeName === 'ReleaseResourceReference', false, true)
-	).toHaveLength(2);
-	expect(xml).toContain('ResourceGroupType="Component"');
+	const groups = create(xml).filter(
+		(n) => n.node.nodeName === 'ResourceGroup' && n.node.parentNode?.nodeName === 'ResourceGroup',
+		false,
+		true
+	);
+	expect(groups).toHaveLength(2);
+	for (const [index, group] of groups.entries()) {
+		const directText = (node: typeof group, name: string) =>
+			node.find((child) => child.node.nodeName === name, false, false)?.node.textContent;
+		expect(directText(group, 'SequenceNumber')).toBe(String(index + 1));
+		const items = group.filter((n) => n.node.nodeName === 'ResourceGroupContentItem', false, false);
+		expect(items).toHaveLength(1);
+		expect(directText(items[0], 'SequenceNumber')).toBe('1');
+		expect(directText(items[0], 'ReleaseResourceReference')).toBe(`A${s.tracks[0].recordingId}`);
+	}
 	blocked((s) => {
 		s.tracks.push({ ...s.tracks[0] });
 	}, 'tracks.position');
@@ -238,4 +249,41 @@ it('uses the same escaping for copyright text and attributes without adding new 
 	const numeric = create();
 	numeric.ele('Text').txt('&#65;');
 	expect(serializeErnXml(numeric)).toContain('&amp;#65;');
+});
+
+it('does not duplicate a version already in the display title', () => {
+	const snapshot = completeErnFixture();
+	snapshot.release.title = 'Release (Radio Edit)';
+	snapshot.release.versionTitle = 'Radio Edit';
+	const xml = run(snapshot).xml!;
+	expect(xml).toContain('<DisplayTitleText>Release (Radio Edit)</DisplayTitleText>');
+	expect(xml).toContain('<SubTitle>Radio Edit</SubTitle>');
+});
+
+it('accepts the ERN language pattern on both the release and recording', () => {
+	const snapshot = completeErnFixture();
+	snapshot.release.metadataLanguage = 'en-Latn-US';
+	snapshot.recordings[0].metadataLanguage = 'en-Latn-US';
+	expect(run(snapshot).xml?.match(/LanguageAndScriptCode="en-Latn-US"/g)).toHaveLength(2);
+	blocked((s) => {
+		s.release.metadataLanguage = 'en-1234';
+	}, 'release.metadataLanguage');
+	blocked((s) => {
+		s.recordings[0].metadataLanguage = 'en-1234';
+	}, 'metadataLanguage');
+});
+
+it('reports unsupported scope alongside an invalid DPID', () => {
+	const result = run(completeErnFixture(), {
+		...testContext,
+		recipientDpid: 'invalid',
+		territoryScope: 'GB'
+	});
+	expect(result.xml).toBeNull();
+	expect(result.findings).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ kind: 'invalid', path: 'context.recipientDpid' }),
+			expect.objectContaining({ kind: 'unmapped', path: 'context.scope' })
+		])
+	);
 });
