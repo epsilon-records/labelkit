@@ -6,7 +6,7 @@ import type { Database } from '../audit';
 import { apiCreateRequests } from '../db/schema';
 import { limitsFor } from '../plans';
 import { plansConfig } from '../plans-env';
-import { ApiError, requireId, toWire, v1 } from './v1';
+import { ApiError, artistToWire, requireId, toWire, v1 } from './v1';
 
 type Event = { locals: App.Locals; request: Request; url: URL; params: Record<string, string> };
 type Operation = 'release' | 'recording' | 'artist' | 'track';
@@ -146,12 +146,18 @@ export function createEndpoint(operation: Operation) {
 				operation === 'track' || operation === 'recording'
 					? await limitsFor(plansConfig(), orgId)
 					: null;
+			// The route is part of the receipt identity. A release id matches in any letter case, so key
+			// the receipt on the lower-case id: a retry that changes its case still finds the original.
+			const route =
+				operation === 'track'
+					? `/v1/releases/${releaseId.toLowerCase()}/tracks`
+					: event.url.pathname;
 			try {
 				return await db((tx) =>
 					once(
 						tx,
 						{ orgId, actorId },
-						event.url.pathname,
+						route,
 						event.request.headers.get('idempotency-key'),
 						body,
 						async () => {
@@ -164,7 +170,9 @@ export function createEndpoint(operation: Operation) {
 										: operation === 'recording'
 											? await createRecording(tx, ctx, fields, limits)
 											: await addTrack(tx, ctx, releaseId, fields, limits);
-							return { [operation === 'track' ? 'recording' : operation]: toWire(result) };
+							return operation === 'artist'
+								? { artist: artistToWire(result as Parameters<typeof artistToWire>[0]) }
+								: { [operation === 'track' ? 'recording' : operation]: toWire(result) };
 						}
 					)
 				);
