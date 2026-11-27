@@ -16,6 +16,7 @@ import {
 	releaseTracks
 } from '../db/schema';
 import { createTestDb } from '../test-db';
+import { expectMatchesSpec } from './openapi-validate';
 let db: Awaited<ReturnType<typeof createTestDb>>['db'];
 let orgId: string, labelId: string;
 let writer: NonNullable<Awaited<ReturnType<typeof resolveApiKey>>>;
@@ -189,4 +190,30 @@ it('permits derived type refresh but forbids API actors editing unrelated releas
 		)
 	).rejects.toThrow();
 	expect((await db.select().from(releases))[0].title).toBe('Original');
+});
+it('sends artists in the documented shape', async () => {
+	const response = await call('artist', { display_name: 'Contract artist' });
+	expect(response.status).toBe(201);
+	const body = await response.json();
+	expectMatchesSpec('/v1/artists', '201', body, 'post');
+	expect(body.artist).toMatchObject({ display_name: 'Contract artist', kind: 'unknown' });
+});
+it('keeps one receipt for a track retry that changes the release id letter case', async () => {
+	const { release } = await (
+		await call('release', { title: 'Case', upc: '000123450102', label_id: labelId })
+	).json();
+	const track = {
+		mode: 'new',
+		title: 'Only track',
+		isrc: 'USAAA2600003',
+		duration: '03:00',
+		disc: 1,
+		position: 1
+	};
+	const first = await call('track', track, writer, release.id.toLowerCase(), 'case-retry');
+	const again = await call('track', track, writer, release.id.toUpperCase(), 'case-retry');
+	expect(first.status).toBe(201);
+	expect(again.status).toBe(201);
+	expect(await again.json()).toEqual(await first.json());
+	expect(await db.select().from(releaseTracks)).toHaveLength(1);
 });
