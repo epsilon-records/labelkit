@@ -12,6 +12,10 @@
  * `set_config('request.jwt.claim.sub', …)` from `src/lib/server/db/scoped.ts` — so a change to how
  * the app scopes a request moves these results or breaks them.
  *
+ * A case may also carry `pin` (the value of app.pinned_org for the transaction; undefined leaves it
+ * unset), `setup` (statements run as the case's role before the probe) and `probeAsOwner` (switch to
+ * the owner connection's role after `setup`, to read what the role itself cannot see).
+ *
  * Cases are flagged with what the engine must provide, and hosts skip what they cannot honour:
  *  - `requiresSupabaseRoles` — needs Supabase's own `anon`/`authenticated`/`service_role`. These
  *    are NOT created here on purpose: an earlier revision of this file fabricated them and granted
@@ -44,7 +48,11 @@ export const IDS = {
 	// B's second owner — so B has two owners while A's only owner is u1.
 	u4: '44444444-4444-4444-8444-444444444444',
 	u5: '55555555-5555-4555-8555-555555555555',
-	u6: '66666666-6666-4666-8666-666666666666'
+	u6: '66666666-6666-4666-8666-666666666666',
+	// Label sessions (knowledge labelkit 0051): u7 is a catalog manager in BOTH orgs, so a pin to one
+	// label has something real to hide. pinOther is an org id nobody belongs to.
+	u7: '77777777-7777-4777-8777-777777777777',
+	pinOther: '99999999-0000-4000-8000-000000000099'
 };
 
 export const SEED_SQL = [
@@ -55,7 +63,9 @@ export const SEED_SQL = [
 		('${IDS.orgA}', '${IDS.u1}', 'owner'),
 		('${IDS.orgA}', '${IDS.u4}', 'viewer'),
 		('${IDS.orgB}', '${IDS.u2}', 'owner'),
-		('${IDS.orgB}', '${IDS.u6}', 'owner')`,
+		('${IDS.orgB}', '${IDS.u6}', 'owner'),
+		('${IDS.orgA}', '${IDS.u7}', 'catalog_manager'),
+		('${IDS.orgB}', '${IDS.u7}', 'catalog_manager')`,
 	`INSERT INTO labels (id, org_id, name) VALUES
 		('${IDS.labelA}', '${IDS.orgA}', 'Alpha Sound'),
 		('${IDS.labelB}', '${IDS.orgB}', 'Beta Sound')`
@@ -66,7 +76,7 @@ export const TEARDOWN_SQL = [
 	// Deleting the orgs cascades to their memberships. Deleting a sole owner's membership on its own
 	// is refused by the last-owner rule (0017_members_manage.sql), so the orgs go first.
 	`DELETE FROM orgs WHERE id IN ('${IDS.orgA}', '${IDS.orgB}')`,
-	`DELETE FROM memberships WHERE user_id IN ('${IDS.u1}', '${IDS.u2}', '${IDS.u3}', '${IDS.u4}', '${IDS.u5}', '${IDS.u6}')`
+	`DELETE FROM memberships WHERE user_id IN ('${IDS.u1}', '${IDS.u2}', '${IDS.u3}', '${IDS.u4}', '${IDS.u5}', '${IDS.u6}', '${IDS.u7}')`
 ];
 
 /**
@@ -75,6 +85,13 @@ export const TEARDOWN_SQL = [
  * silently filters is not confused with one that blocks a write). `errorMatch`, when set, is a
  * pattern the refusal's message must match as well, for cases where a refusal for another reason
  * (say, row-level security instead of the last-owner rule) would be a false pass.
+ */
+/**
+ * @type {{
+ *   name: string; role: string; claim: string | null; probe: string; expect: string;
+ *   errorCode?: string; errorMatch?: string; requiresSupabaseRoles?: boolean;
+ *   requiresBypassRls?: boolean; pin?: string; setup?: string[]; probeAsOwner?: boolean;
+ * }[]}
  */
 export const RLS_CASES = [
 	{
@@ -449,9 +466,13 @@ export const RLS_CASES = [
  * @param {string} role
  * @param {string | null} claim the subject the app would put in request.jwt.claim.sub, or null
  *   for a request with no session at all.
+ * @param {string} [pin] the value of app.pinned_org, or undefined to leave it unset.
  */
-export function assumeSql(role, claim) {
+export function assumeSql(role, claim, pin) {
 	const sets = [`set_config('role', '${role}', true)`];
+	// A label session pins the transaction to one org (scoped.ts `pinOrgId`). `undefined` sets
+	// nothing at all, which is the setting never having existed; '' is the setting set and empty.
+	if (pin !== undefined) sets.push(`set_config('app.pinned_org', '${pin}', true)`);
 	if (claim === null) {
 		sets.push(`set_config('request.jwt.claim.sub', '', true)`);
 	} else {
@@ -715,3 +736,223 @@ for (const table of ['label_sessions', 'label_handoffs']) {
 		expect: 'true'
 	});
 }
+
+// Label sessions, step 2 (knowledge labelkit 0051, labelkit#258): a transaction pinned to one label
+// sees that label only. app.is_member and app.has_role are false for every other org while
+// app.pinned_org is set; an unset or EMPTY pin changes nothing. u7 belongs to both orgs.
+const BOTH = ['owner', 'catalog_manager', 'rights_admin', 'viewer', 'agent'];
+const allRoles = `ARRAY[${BOTH.map((r) => `'${r}'`).join(',')}]`;
+/** @type {[string, string | undefined][]} */
+const NOT_PINNED = [
+	['no pin', undefined],
+	['an empty pin', '']
+];
+for (const [what, pin] of NOT_PINNED) {
+	for (const [name, probe, expect] of [
+		["sees both orgs' labels", 'SELECT count(*) FROM labels', '2'],
+		['sees both orgs', 'SELECT count(*) FROM orgs', '2'],
+		['sees every membership of both orgs', 'SELECT count(*) FROM memberships', '6'],
+		['is a member of A', `SELECT app.is_member('${IDS.orgA}')::text`, 'true'],
+		['is a member of B', `SELECT app.is_member('${IDS.orgB}')::text`, 'true'],
+		['holds a role in B', `SELECT app.has_role('${IDS.orgB}', ${allRoles})::text`, 'true'],
+		['has no pin', "SELECT coalesce(app.pinned_org()::text, 'unset')", 'unset']
+	]) {
+		RLS_CASES.push({
+			name: `pin: with ${what}, a member of two labels ${name} (behaviour unchanged)`,
+			role: 'labelkit_app',
+			claim: IDS.u7,
+			pin,
+			probe,
+			expect
+		});
+	}
+	RLS_CASES.push({
+		name: `pin: with ${what}, a member may still write to either label (behaviour unchanged)`,
+		role: 'labelkit_app',
+		claim: IDS.u7,
+		pin,
+		probe: `WITH ins AS (
+			INSERT INTO labels (id, org_id, name)
+			VALUES ('${IDS.sneakLabel}', '${IDS.orgB}', 'second label') RETURNING 1
+		) SELECT count(*) FROM ins`,
+		expect: '1'
+	});
+}
+
+for (const [pinned, other, otherName] of /** @type {const} */ ([
+	[IDS.orgA, IDS.orgB, 'B'],
+	[IDS.orgB, IDS.orgA, 'A']
+])) {
+	const mine = otherName === 'B' ? 'A' : 'B';
+	/**
+	 * @param {string} name
+	 * @param {string} probe
+	 * @param {string} expect
+	 * @param {{ errorCode?: string; errorMatch?: string; setup?: string[]; probeAsOwner?: boolean }} [extra]
+	 */
+	const at = (name, probe, expect, extra = {}) =>
+		RLS_CASES.push({
+			name: `pin to ${mine}: ${name}`,
+			role: 'labelkit_app',
+			claim: IDS.u7,
+			pin: pinned,
+			probe,
+			expect,
+			...extra
+		});
+	at('app.pinned_org reads the pin', 'SELECT app.pinned_org()::text', pinned);
+	at(`is_member is false for ${otherName}`, `SELECT app.is_member('${other}')::text`, 'false');
+	at(`is_member stays true for ${mine}`, `SELECT app.is_member('${pinned}')::text`, 'true');
+	at(
+		`has_role is false for every role in ${otherName}`,
+		`SELECT app.has_role('${other}', ${allRoles})::text`,
+		'false'
+	);
+	for (const role of BOTH) {
+		at(
+			`has_role(${role}) is false in ${otherName}`,
+			`SELECT app.has_role('${other}', ARRAY['${role}'])::text`,
+			'false'
+		);
+	}
+	at(
+		`has_role stays true for the role held in ${mine}`,
+		`SELECT app.has_role('${pinned}', ARRAY['catalog_manager'])::text`,
+		'true'
+	);
+	at(`reads only ${mine}'s labels`, 'SELECT count(*) FROM labels', '1');
+	at(
+		`cannot read ${otherName}'s labels even by explicit org id`,
+		`SELECT count(*) FROM labels WHERE org_id = '${other}'`,
+		'0'
+	);
+	at(`reads only ${mine} in orgs`, 'SELECT count(*) FROM orgs', '1');
+	// A has u1, u4 and u7; B has u2, u6 and u7. Unpinned, u7 reads all six.
+	at(`reads only ${mine}'s memberships`, 'SELECT count(*) FROM memberships', '3');
+	at(
+		`cannot insert into ${otherName}, though a catalog manager there`,
+		`INSERT INTO labels (id, org_id, name) VALUES ('${IDS.sneakLabel}', '${other}', 'sneaked in')`,
+		'error',
+		{ errorCode: '42501' }
+	);
+	at(
+		`cannot update ${otherName}'s labels`,
+		`WITH upd AS (UPDATE labels SET name = 'hijacked' WHERE org_id = '${other}' RETURNING 1)
+			SELECT count(*) FROM upd`,
+		'0'
+	);
+	at(
+		`cannot delete ${otherName}'s labels`,
+		`WITH del AS (DELETE FROM labels WHERE org_id = '${other}' RETURNING 1) SELECT count(*) FROM del`,
+		'0'
+	);
+	at(
+		`may still insert into ${mine}`,
+		`WITH ins AS (
+			INSERT INTO labels (id, org_id, name) VALUES ('${IDS.freshLabel}', '${pinned}', 'in the pinned label')
+			RETURNING 1
+		) SELECT count(*) FROM ins`,
+		'1'
+	);
+	at(
+		`app.authorize refuses ${otherName} as a non-member`,
+		`SELECT app.authorize('${other}', '${IDS.freshLabel}', 'analysis')`,
+		'error',
+		{ errorCode: '42501', errorMatch: 'not allowed to request processing' }
+	);
+	at(
+		`app.authorize still passes the role check for ${mine}`,
+		`SELECT app.authorize('${pinned}', '${IDS.freshLabel}', 'analysis')`,
+		'error',
+		{ errorCode: 'P0002', errorMatch: 'recording not found' }
+	);
+	at(
+		`app.complete_onboarding does not stamp ${otherName}'s membership`,
+		`SELECT count(*) FROM memberships WHERE org_id = '${other}' AND onboarded_at IS NOT NULL`,
+		'0',
+		{ setup: [`SELECT app.complete_onboarding('${other}')`], probeAsOwner: true }
+	);
+	at(
+		`app.complete_onboarding still stamps ${mine}'s membership`,
+		`SELECT count(*) FROM memberships WHERE org_id = '${pinned}' AND onboarded_at IS NOT NULL`,
+		'1',
+		{ setup: [`SELECT app.complete_onboarding('${pinned}')`] }
+	);
+}
+
+// A pin names one label. It never widens access: not for a non-member, not for an unrelated org.
+RLS_CASES.push(
+	{
+		name: 'pin: a non-member pinned to A still reads nothing',
+		role: 'labelkit_app',
+		claim: IDS.u3,
+		pin: IDS.orgA,
+		probe: `SELECT app.is_member('${IDS.orgA}')::text`,
+		expect: 'false'
+	},
+	{
+		name: 'pin: a member of A only, pinned to B, reads nothing',
+		role: 'labelkit_app',
+		claim: IDS.u1,
+		pin: IDS.orgB,
+		probe: 'SELECT count(*) FROM labels',
+		expect: '0'
+	},
+	{
+		name: 'pin: a pin to an org nobody belongs to hides both labels from a two-label member',
+		role: 'labelkit_app',
+		claim: IDS.u7,
+		pin: IDS.pinOther,
+		probe: 'SELECT count(*) FROM labels',
+		expect: '0'
+	},
+	{
+		name: 'pin: an upper-case pin is the same org',
+		role: 'labelkit_app',
+		claim: IDS.u7,
+		pin: IDS.orgA.toUpperCase(),
+		probe: `SELECT app.is_member('${IDS.orgB}')::text`,
+		expect: 'false'
+	},
+	{
+		name: 'pin: no session claim and a pin still reads nothing (fail closed)',
+		role: 'labelkit_app',
+		claim: null,
+		pin: IDS.orgA,
+		probe: 'SELECT count(*) FROM labels',
+		expect: '0'
+	}
+);
+
+// The audit of every place that reads `memberships` directly (labelkit#258, step 2). Only the
+// functions below do; no policy does. A new one fails here until it is read, and either made to honour
+// app.pinned_org or listed with the reason it need not.
+RLS_CASES.push(
+	{
+		name: 'audit: no policy reads memberships directly',
+		role: 'postgres',
+		claim: null,
+		probe: `SELECT count(*) FROM pg_policies
+			WHERE qual ILIKE '%memberships%' OR with_check ILIKE '%memberships%'`,
+		expect: '0'
+	},
+	{
+		name: 'audit: every policy on a public table reaches orgs only through is_member, has_role or can_catalog_create',
+		role: 'postgres',
+		claim: null,
+		probe: `SELECT count(*) FROM pg_policies
+			WHERE schemaname = 'public'
+			AND NOT (coalesce(qual, '') || ' ' || coalesce(with_check, '') ~ 'app\\.(is_member|has_role|can_catalog_create)')`,
+		expect: '0'
+	},
+	{
+		name: 'audit: the functions that read memberships directly are the audited ones',
+		role: 'postgres',
+		claim: null,
+		probe: `SELECT string_agg(p.proname, ',' ORDER BY p.proname)
+			FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+			WHERE n.nspname = 'app' AND p.prokind = 'f' AND p.prosrc ILIKE '%memberships%'`,
+		expect:
+			'authorize,complete_onboarding,create_api_key,create_org,has_role,is_member,keep_one_owner,purge_org,revoke_api_key'
+	}
+);

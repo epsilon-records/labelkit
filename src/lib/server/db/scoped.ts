@@ -9,8 +9,8 @@ export type Scoped = <T>(fn: (tx: Database) => Promise<T>) => Promise<T>;
 export type AsUserOptions = {
 	/**
 	 * Pin the transaction to one label (knowledge labelkit 0051): sets the transaction-local
-	 * `app.pinned_org`. Nothing reads it yet; the RLS functions start to honour it in the next step of
-	 * the label-session work (epsilon-records/labelkit#258), so until then a pin changes no result.
+	 * `app.pinned_org`. Migration 0040 makes `app.is_member` and `app.has_role` (and so every policy)
+	 * false for any other org while it is set. Nothing passes a pin yet (epsilon-records/labelkit#258).
 	 */
 	pinOrgId?: string;
 };

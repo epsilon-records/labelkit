@@ -97,7 +97,9 @@ try {
 		let outcome = '';
 		try {
 			await sql.begin(async (tx) => {
-				await tx.unsafe(assumeSql(testCase.role, testCase.claim));
+				await tx.unsafe(assumeSql(testCase.role, testCase.claim, testCase.pin));
+				for (const statement of testCase.setup ?? []) await tx.unsafe(statement);
+				if (testCase.probeAsOwner) await tx.unsafe("SELECT set_config('role', 'postgres', true)");
 
 				if (testCase.expect === 'error') {
 					let message = '';
