@@ -1,5 +1,5 @@
 <!--
-  Supabase Auth "Invite user" template for ERMS (EPSILON-87).
+  Supabase Auth "Invite user" template for LabelKit (EPSILON-87).
 
   Supabase's templates are shared by every org (decision 0021, kept by 0027),
   so this copy never names Epsilon Records: it names the label the person is invited to, from
@@ -9,7 +9,7 @@
   The link uses the token hash and lands on /auth/confirm, not the confirmation URL: an invite
   is opened in a browser other than the one that sent it, so a PKCE code would fail there.
 
-  Production: paste this body into Authentication -> Emails -> Invite user in the ERMS project.
+  Production: paste this body into Authentication -> Emails -> Invite user in the LabelKit project.
   Subject: as in supabase/config.toml, [auth.email.template.invite].
 
   Once Supabase's Send Email hook is on (EPSILON-147, decision 0027), the hosted template is no
@@ -18,12 +18,12 @@
 -->
 <h2>
 	You're invited to {{ if .Data.invited_org_name }}{{ .Data.invited_org_name }}{{ else }}a label{{
-	end }} on ERMS
+	end }} on LabelKit
 </h2>
 
 <p>
-	{{ if .Data.invited_org_name }}{{ .Data.invited_org_name }}{{ else }}A label{{ end }} uses ERMS
-	for its catalogue, rights and releases, and has invited you to join.
+	{{ if .Data.invited_org_name }}{{ .Data.invited_org_name }}{{ else }}A label{{ end }} uses
+	LabelKit for its catalogue, rights and releases, and has invited you to join.
 </p>
 
 <p>

@@ -67,12 +67,12 @@
 	);
 </script>
 
-<noscript
-	><p class="soft">
+<noscript>
+	<p class="soft">
 		JavaScript is required to confirm removals. Removal requests without confirmation leave existing
 		records unchanged.
-	</p></noscript
->
+	</p>
+</noscript>
 
 {#if groups.length === 0}
 	<p class="soft">{emptyText}</p>
@@ -86,13 +86,13 @@
 				{#each groups as g (g.territory)}
 					{#each g.holders as h, i (h.holder)}
 						<tr>
-							<td class="mono"
-								>{i === 0 ? (g.territory === 'WW' ? 'Worldwide' : g.territory) : ''}</td
-							>
+							<td class="mono">
+								{i === 0 ? (g.territory === 'WW' ? 'Worldwide' : g.territory) : ''}
+							</td>
 							<td>
-								{h.name}{#if h.isLabel}<span class="tag outline" style="margin-left: 8px"
-										>label</span
-									>{/if}
+								{h.name}{#if h.isLabel}<span class="tag outline" style="margin-left: 8px">
+										label
+									</span>{/if}
 							</td>
 							<td class="num mono">{h.share}%</td>
 						</tr>
@@ -138,11 +138,12 @@
 						? 'own-territory-help own-territory-error'
 						: 'own-territory-help'}
 				/>
-				<span id="own-territory-help" class="soft" style="margin-left: 8px"
-					>WW for worldwide, or a country code</span
-				>
-				{#if errors.territory}<Field.Error id="own-territory-error">{errors.territory}</Field.Error
-					>{/if}
+				<span id="own-territory-help" class="soft" style="margin-left: 8px">
+					WW for worldwide, or a country code
+				</span>
+				{#if errors.territory}<Field.Error id="own-territory-error">
+						{errors.territory}
+					</Field.Error>{/if}
 			</div>
 		</div>
 		{#key territory}
@@ -158,14 +159,14 @@
 						>
 							<NativeSelect.Option value="">—</NativeSelect.Option>
 							<NativeSelect.OptGroup label="Our labels">
-								{#each options.labels as l (l.id)}<NativeSelect.Option value="l:{l.id}"
-										>{l.name}</NativeSelect.Option
-									>{/each}
+								{#each options.labels as l (l.id)}<NativeSelect.Option value="l:{l.id}">
+										{l.name}
+									</NativeSelect.Option>{/each}
 							</NativeSelect.OptGroup>
 							<NativeSelect.OptGroup label="Artists and others">
-								{#each options.parties as p (p.id)}<NativeSelect.Option value="p:{p.id}"
-										>{p.name}</NativeSelect.Option
-									>{/each}
+								{#each options.parties as p (p.id)}<NativeSelect.Option value="p:{p.id}">
+										{p.name}
+									</NativeSelect.Option>{/each}
 							</NativeSelect.OptGroup>
 						</NativeSelect.Root>
 						<label for="share_{i}" class="sr-only">Share {i + 1} (%)</label>

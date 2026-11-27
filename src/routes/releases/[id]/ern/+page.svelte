@@ -21,32 +21,32 @@
 		Enter the context for this export. The test sender is a placeholder, not a registered DDEX ID.
 	</p>
 	<form method="POST" class="stack">
-		<label class="field"
-			>Sender DDEX party ID<input
+		<label class="field">
+			Sender DDEX party ID<input
 				name="senderDpid"
 				value={values.senderDpid}
 				required
 				maxlength="100"
-			/></label
-		>
-		<label class="field"
-			>Recipient DDEX party ID<input
+			/>
+		</label>
+		<label class="field">
+			Recipient DDEX party ID<input
 				name="recipientDpid"
 				value={values.recipientDpid}
 				required
 				maxlength="100"
-			/></label
-		>
-		<label class="field"
-			>Territory scope (optional)<textarea name="territoryScope" maxlength="2000" rows="2"
+			/>
+		</label>
+		<label class="field">
+			Territory scope (optional)<textarea name="territoryScope" maxlength="2000" rows="2"
 				>{values.territoryScope}</textarea
-			></label
-		>
-		<label class="field"
-			>Deal or partner scope (optional)<textarea name="dealScope" maxlength="2000" rows="2"
+			>
+		</label>
+		<label class="field">
+			Deal or partner scope (optional)<textarea name="dealScope" maxlength="2000" rows="2"
 				>{values.dealScope}</textarea
-			></label
-		>
+			>
+		</label>
 		<p class="muted">
 			Commercial scope needs a partner mapping and will be reported as unmapped. Missing catalogue
 			facts must be entered through separately scoped catalogue work; this form cannot override

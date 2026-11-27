@@ -274,6 +274,20 @@
       "when": 1794984000000,
       "tag": "0038_api_keys_closed_org",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795677890700,
+      "tag": "0039_label_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795764258808,
+      "tag": "0040_rls_pin_functions",
+      "breakpoints": true
     }
   ]
 }

@@ -135,7 +135,7 @@ describe('Send Email hook', () => {
 		expect((await t.run(signed(body))).status).toBe(200);
 		const [mail] = t.sent();
 		expect(mail.body.from).toContain('auth.epsilonrecords.com');
-		expect(mail.body.subject).toBe("You're invited to Epsilon Records on ERMS");
+		expect(mail.body.subject).toBe("You're invited to Epsilon Records on LabelKit");
 		expect(mail.body.html).toContain(
 			'https://labelkit.co/auth/confirm?token_hash=pkce_test-token-hash'
 		);

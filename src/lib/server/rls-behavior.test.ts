@@ -51,7 +51,9 @@ describe('row-level security behaviour', () => {
 		it(testCase.name, async () => {
 			await exec('BEGIN');
 			try {
-				await exec(assumeSql(testCase.role, testCase.claim));
+				await exec(assumeSql(testCase.role, testCase.claim, testCase.pin));
+				for (const statement of testCase.setup ?? []) await exec(statement);
+				if (testCase.probeAsOwner) await exec("SELECT set_config('role', 'postgres', true)");
 
 				if (testCase.expect === 'error') {
 					let refused = false;

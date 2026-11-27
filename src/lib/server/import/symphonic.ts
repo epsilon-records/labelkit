@@ -69,7 +69,8 @@ export type PlannedRelease = {
 	genre: string | null;
 	subgenre: string | null;
 	artists: string[];
-	tracks: { position: number; isrc: string }[];
+	releaseCredits?: PlannedCredit[];
+	tracks: { disc?: number; position: number; isrc: string }[];
 };
 
 export type ImportPlan = {

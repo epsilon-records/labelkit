@@ -19,9 +19,12 @@
 				{field}: {message}
 			</p>{/each}
 		<div class="btn-group">
-			<button class="btn primary" type="submit">Create artist</button><a class="btn" href="/artists"
-				>Cancel</a
+			<button class="btn primary" type="submit">Create artist</button><a
+				class="btn"
+				href="/artists"
 			>
+				Cancel
+			</a>
 		</div>
 	</form>
 </div>

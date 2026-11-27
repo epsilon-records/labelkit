@@ -118,8 +118,10 @@
 				class="menu-toggle"
 				aria-expanded={menuOpen}
 				aria-controls="topbar-tray"
-				onclick={() => (menuOpen = !menuOpen)}>{menuOpen ? 'Close' : 'Menu'}</button
+				onclick={() => (menuOpen = !menuOpen)}
 			>
+				{menuOpen ? 'Close' : 'Menu'}
+			</button>
 			<div class="tray" id="topbar-tray">
 				{#if data.membership}
 					<nav aria-label="Main">
@@ -127,8 +129,10 @@
 							<a
 								href={item.href}
 								class="plain"
-								aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a
+								aria-current={isCurrent(item.href) ? 'page' : undefined}
 							>
+								{item.label}
+							</a>
 						{/each}
 					</nav>
 				{/if}
@@ -245,8 +249,12 @@
 		font-size: 13px;
 	}
 	/* 44 px touch floor (audit F-11) for the small controls in the bar. */
+	/* As flex boxes, so the link's text centres in its 44 px box like the button's does. */
 	.who :global(.linkish) {
+		display: inline-flex;
+		align-items: center;
 		min-height: 44px;
+		text-decoration: none;
 	}
 	/* Full-width skip target: draw the keyboard ring inside it so it stays on screen. */
 	main:focus-visible {

@@ -267,6 +267,11 @@ Decision 0027 (EPSILON-147): Epsilon's staff get sign-in and invite email from
 switched on in Supabase, every auth email still goes over SMTP from `auth.labelkit.co`, and the
 route is unused.
 
+**Return address.** A sign-in link carries its return address (`redirect_to`) only when that is on
+LabelKit itself, or a label's own domain and the recipient is a member of that label. Otherwise the
+link is sent without it and lands on labelkit.co. Any lookup failure does the same; the email still
+goes out.
+
 **Why an endpoint in this app** rather than an Edge Function or a Postgres hook: the repo has no
 Edge Functions (`[edge_runtime]` is off) and its other machine callers (the AudioKit webhooks) are
 SvelteKit routes that verify a signature, with secrets in Netlify; a Postgres hook cannot call
@@ -394,6 +399,17 @@ the next email follows the rules above, no deploy needed. To stop the hook altog
 **Authentication → Auth Hooks → Send Email hook → disable** (or delete it). Supabase
 goes back to its SMTP sender, `auth.labelkit.co`, at once; nothing in the app needs to change and no
 deploy is needed. The Netlify variables can stay.
+
+## Catalogue import
+
+At `/import`, run a dry run with one UTF-8 DDEX ERN 4.3 XML message or a ZIP containing XML messages.
+Uploads are limited to 4 MB and extracted XML to 5 MB. The dry run shows the changes and reports
+unsupported metadata and rights fields before you select the same file again to confirm.
+
+LabelKit matches releases by UPC/EAN and recordings by ISRC. It adds track placements by disc and
+position. If a position already holds another recording, the batch is blocked and rolled back.
+Rights controllers, territories, ownership shares and deal terms appear in the report and create no
+rights rows. The existing SymphonicMS CSV importer remains available under the legacy option.
 
 ## Public API (`/v1`)
 

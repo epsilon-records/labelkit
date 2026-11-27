@@ -153,9 +153,9 @@
 								<NativeSelect.Root id="comp-link" name="compositionId" required size="sm">
 									<NativeSelect.Option value="">Link existing…</NativeSelect.Option>
 									{#each data.compositionChoices.filter((c) => !data.compositions.some((x) => x.id === c.id)) as c (c.id)}
-										<NativeSelect.Option value={c.id}
-											>{c.title}{c.iswc ? ` (${c.iswc})` : ''}</NativeSelect.Option
-										>
+										<NativeSelect.Option value={c.id}>
+											{c.title}{c.iswc ? ` (${c.iswc})` : ''}
+										</NativeSelect.Option>
 									{/each}
 								</NativeSelect.Root>
 								<Button type="submit" size="small">Link</Button>

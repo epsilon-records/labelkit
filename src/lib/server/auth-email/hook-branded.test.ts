@@ -121,7 +121,11 @@ function setup(o: Opts = {}) {
 	const brandingEnabled = vi.fn(
 		o.flag ?? (async (orgId: string) => (o.flagOn ?? []).includes(orgId))
 	);
-	const memberOrgIds = vi.fn(async () => o.members ?? []);
+	// A label's own domain reaches only its members, so by default the person belongs to every
+	// label the test names a domain for.
+	const memberOrgIds = vi.fn(
+		async () => o.members ?? Object.values(o.hosts ?? {}).map((b) => b.orgId)
+	);
 	const logs: Record<string, unknown>[] = [];
 	const run = (req: Request) =>
 		handleSendEmailHook(req, {
@@ -176,7 +180,6 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 			expect(res.status).toBe(200);
 			expect(t.orgBrand).toHaveBeenCalledWith({ host: 'erms.epsilonrecords.com' });
 			expect(t.brandingEnabled).toHaveBeenCalledWith(EPSILON);
-			expect(t.memberOrgIds).not.toHaveBeenCalled();
 			const [mail] = t.sent();
 			expect(mail.auth).toBe(`Bearer ${FAKE_ORG_KEY}`);
 			expect(mail.body.from).toBe('"ERMS" <no-reply@auth.epsilonrecords.com>');
@@ -274,7 +277,7 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 
 	describe('fallback to the default sender', () => {
 		it('no org on the redirect host: the EPSILON-147 rules (LabelKit for a non-member)', async () => {
-			const t = setup({ hosts: hostERMS, flagOn: [EPSILON] });
+			const t = setup({ hosts: hostERMS, flagOn: [EPSILON], members: [] });
 			await t.run(signed(payload('signup', { redirect_to: 'https://labelkit.co/auth/callback' })));
 			expect(t.brandingEnabled).not.toHaveBeenCalled();
 			expect(t.memberOrgIds).toHaveBeenCalledWith(USER);
@@ -339,7 +342,7 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 			const [mail] = t.sent();
 			expect(mail.auth).toBe('Bearer fake-key-epsilon');
 			expect(mail.body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
-			expect(mail.body.subject).toBe('Your ERMS sign-in link');
+			expect(mail.body.subject).toBe('Your LabelKit sign-in link');
 			expect(t.logs.at(-1)).not.toHaveProperty('branded');
 		});
 
@@ -413,7 +416,6 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 				log: () => {}
 			});
 			expect(res.status).toBe(200);
-			expect(t.orgBrand).not.toHaveBeenCalled();
 			expect(t.brandingEnabled).not.toHaveBeenCalled();
 			expect(t.memberOrgIds).toHaveBeenCalledWith(USER);
 			expect(t.sent()[0].body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
@@ -445,7 +447,8 @@ describe('Send Email hook, branded per label (EPSILON-146)', () => {
 			});
 			expect((await t.run(signed(payload()))).status).toBe(200);
 			expect(t.brandingEnabled).not.toHaveBeenCalled();
-			expect(t.logs.some((l) => l.outcome === 'brand_lookup_failed')).toBe(true);
+			// The return-address check hits the failure first: the link goes out without it.
+			expect(t.logs.some((l) => l.outcome === 'return_address_dropped')).toBe(true);
 			expect(t.sent()[0].body.from).toBe('Epsilon Records <no-reply@auth.epsilonrecords.com>');
 		});
 	});

@@ -1,5 +1,5 @@
-import { beforeEach, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { createRelease, addTrack, createArtist, createRecording } from './catalog-create';
 import { EditError } from './catalog-edit';
@@ -14,6 +14,7 @@ import {
 	releases,
 	releaseTracks
 } from './db/schema';
+import { lockLimit } from './plans';
 import { createTestDb } from './test-db';
 let db: Awaited<ReturnType<typeof createTestDb>>['db'];
 let orgId: string;
@@ -220,4 +221,46 @@ it('returns a field error for a concurrent duplicate UPC and keeps one audited r
 	expect(refused?.status === 'rejected' ? refused.reason : null).toBeInstanceOf(EditError);
 	expect(await db.select().from(releases)).toHaveLength(1);
 	expect(await db.select().from(auditLog)).toHaveLength(1);
+});
+
+it('takes the plan-limit lock before the release, the order an import uses', async () => {
+	const release = await createRelease(db, ctx(), fields());
+	const limits = { tracks: 10, seats: 2, analysisJobsPerMonth: 5 };
+	let adding: Promise<unknown> = Promise.resolve();
+	// Another writer holds the plan-limit lock, as an import does for as long as it runs.
+	await db.transaction(async (holder) => {
+		await lockLimit(holder, orgId, 'tracks');
+		adding = addTrack(
+			db,
+			ctx(),
+			release.id,
+			{
+				mode: 'new',
+				disc: '1',
+				position: '1',
+				title: 'Test recording',
+				versionTitle: '',
+				isrc: 'USAAA2600001',
+				duration: '',
+				genre: '',
+				subgenre: ''
+			},
+			limits
+		);
+		adding.catch(() => {});
+		await vi.waitFor(
+			async () => {
+				const [waiting] = await db.execute<{ n: number }>(
+					sql`select count(*)::int as n from pg_stat_activity
+						where datname = current_database() and wait_event_type = 'Lock'`
+				);
+				expect(waiting.n).toBe(1);
+			},
+			{ timeout: 5000 }
+		);
+		// The waiting add holds nothing the holder needs: the release is still free to lock.
+		await holder.execute(sql`select 1 from releases where id = ${release.id} for update nowait`);
+	});
+	await adding;
+	expect(await db.select().from(releaseTracks)).toHaveLength(1);
 });

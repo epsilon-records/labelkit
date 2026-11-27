@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { fail } from '@sveltejs/kit';
 import { recentImports } from '#lib/server/catalog.js';
 import { requireScope } from '#lib/server/guard.js';
-import { applyImport } from '#lib/server/import/apply.js';
+import { applyImport, ImportTrackConflict } from '#lib/server/import/apply.js';
 import { countRecordings, LIMIT_MESSAGES, limitsFor, lockLimit } from '#lib/server/plans.js';
 import { plansConfig } from '#lib/server/plans-env.js';
 
@@ -13,6 +13,12 @@ import {
 	parseSymphonicInventory,
 	summarizePlan
 } from '#lib/server/import/symphonic.js';
+import { findingsOverBudget, MAX_ERN_FINDINGS, parseErnDocuments } from '#lib/server/import/ern.js';
+import {
+	ErnUploadError,
+	MAX_ERN_UPLOAD_BYTES,
+	readErnUpload
+} from '#lib/server/import/ern-upload.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -42,22 +48,60 @@ async function readCsv(form: FormData) {
 async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	const m = requireScope(locals, 'catalog:write');
 	const form = await request.formData();
-	const csv = await readCsv(form);
-	if ('error' in csv) return fail(400, { error: csv.error });
-
-	const sha256 = createHash('sha256').update(csv.text).digest('hex');
-	if (!dryRun && form.get('sha256') !== sha256) {
-		return fail(400, { error: 'The file changed since the dry run. Run the dry run again.' });
+	// A dry run counts changes against one organisation's catalogue; confirm applies to that one.
+	if (!dryRun && form.get('orgId') !== m.orgId) {
+		return fail(409, {
+			error: 'The active organisation changed since the dry run. Run the dry run again.'
+		});
 	}
-
-	const plan = parseSymphonicInventory(csv.text);
+	const isErn = form.get('format') === 'ern';
+	let name: string;
+	let sha256: string;
+	let csvText: string | undefined;
+	let plan: ReturnType<typeof parseSymphonicInventory>;
+	if (isErn) {
+		const file = form.get('file');
+		if (!(file instanceof File) || !file.size || file.size > MAX_ERN_UPLOAD_BYTES) {
+			return fail(400, { error: 'Choose a non-empty ERN XML or ZIP file up to 4 MB.' });
+		}
+		name = file.name;
+		const bytes = Buffer.from(await file.arrayBuffer());
+		sha256 = createHash('sha256').update(bytes).digest('hex');
+		if (!dryRun && form.get('sha256') !== sha256) {
+			return fail(400, { error: 'The file changed since the dry run. Run the dry run again.' });
+		}
+		try {
+			plan = parseErnDocuments(await readErnUpload(name, bytes));
+		} catch (e) {
+			if (e instanceof ErnUploadError) return fail(400, { error: e.message });
+			throw e;
+		}
+		// Bounded by count and by size: a few findings can still carry long file names and paths.
+		if (plan.issues.length > MAX_ERN_FINDINGS || findingsOverBudget(plan.issues)) {
+			return fail(422, {
+				error: 'The upload has too many findings to review. Split it into smaller batches.'
+			});
+		}
+	} else {
+		const csv = await readCsv(form);
+		if ('error' in csv) return fail(400, { error: csv.error });
+		name = csv.name;
+		csvText = csv.text;
+		sha256 = createHash('sha256').update(csvText).digest('hex');
+		if (!dryRun && form.get('sha256') !== sha256) {
+			return fail(400, { error: 'The file changed since the dry run. Run the dry run again.' });
+		}
+		plan = parseSymphonicInventory(csvText);
+	}
 	const summary = summarizePlan(plan);
 	const base = {
-		fileName: csv.name,
+		fileName: name,
 		sha256,
+		orgId: m.orgId,
 		summary,
-		issues: plan.issues.slice(0, 200),
-		moreIssues: Math.max(0, plan.issues.length - 200)
+		format: isErn ? ('ern' as const) : ('csv' as const),
+		issues: isErn ? plan.issues : plan.issues.slice(0, 200),
+		moreIssues: isErn ? 0 : Math.max(0, plan.issues.length - 200)
 	};
 	if (summary.errors > 0) return fail(422, { ...base, stage: 'blocked' as const });
 
@@ -66,13 +110,14 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 	let result;
 	try {
 		result = await locals.db(async (tx) => {
-			if (limits) await lockLimit(tx, m.orgId, 'tracks');
+			await lockLimit(tx, m.orgId, 'tracks');
 			const applied = await applyImport(tx, plan, {
 				orgId: m.orgId,
 				actor: { id: locals.user!.id, kind: 'user' },
-				fileName: csv.name,
+				fileName: name,
 				fileSha256: sha256,
-				dryRun
+				dryRun,
+				source: isErn ? 'ddex-ern' : undefined
 			});
 			// A dry run has already rolled back, so count what it would add on top of today's catalog.
 			if (limits) {
@@ -87,6 +132,9 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 			return applied;
 		});
 	} catch (e) {
+		if (e instanceof ImportTrackConflict) {
+			return fail(409, { ...base, stage: 'blocked' as const, error: e.message });
+		}
 		if (e instanceof OverLimit) {
 			return fail(402, {
 				...base,
@@ -108,7 +156,7 @@ async function run(request: Request, locals: App.Locals, dryRun: boolean) {
 		stage: dryRun ? ('previewed' as const) : ('imported' as const),
 		counts: result.counts,
 		// Carried to the confirm step so the import applies exactly what was previewed.
-		csv: dryRun ? csv.text : undefined
+		csv: dryRun ? csvText : undefined
 	};
 }
 

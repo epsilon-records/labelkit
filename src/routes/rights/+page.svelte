@@ -36,9 +36,9 @@
 		<h2 id="coverage-h" class="h2">Master ownership</h2>
 		<div class="stats">
 			<div>
-				<span class="value mono">{c.complete}/{c.total}</span><span class="label"
-					>recordings with worldwide master ownership</span
-				>
+				<span class="value mono">{c.complete}/{c.total}</span><span class="label">
+					recordings with worldwide master ownership
+				</span>
 			</div>
 			<div><span class="value mono">{pct}%</span><span class="label">complete</span></div>
 			<div>
@@ -106,8 +106,10 @@
 									<a
 										href="/recordings/{r.id}"
 										class="plain"
-										style="font-weight: 600; color: var(--text-strong)">{r.title}</a
-									>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
+										style="font-weight: 600; color: var(--text-strong)"
+									>
+										{r.title}
+									</a>{#if r.versionTitle}<span class="muted"> · {r.versionTitle}</span>{/if}
 								</td>
 								<td class="mono muted">{r.isrc}</td>
 							</tr>

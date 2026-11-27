@@ -137,8 +137,10 @@
 				class="menu-toggle"
 				aria-expanded={menuOpen}
 				aria-controls="landing-nav"
-				onclick={() => (menuOpen = !menuOpen)}>{menuOpen ? 'Close' : 'Menu'}</button
+				onclick={() => (menuOpen = !menuOpen)}
 			>
+				{menuOpen ? 'Close' : 'Menu'}
+			</button>
 			<!-- Closes the menu after a link is followed; the links themselves handle keys. -->
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 			<nav
@@ -234,7 +236,7 @@
 					{#each today as item (item)}<li>{item}</li>{/each}
 				</ul>
 				<ul class="soon">
-					{#each soon as item (item)}<li>{item} <span class="tag">Soon</span></li>{/each}
+					{#each soon as item (item)}<li>{item} <span class="soon-tag">Soon</span></li>{/each}
 				</ul>
 			</div>
 		</section>
@@ -288,6 +290,7 @@
 	<footer class="wrap">
 		<span>© 2015–2026 Epsilon Records · Amsterdam</span>
 		<span class="links">
+			<a href="/docs">API docs</a>
 			<a href="/privacy">Privacy</a>
 			<a href="/terms">Terms</a>
 			<a href="https://epsilonrecords.com">Epsilon Records</a>
@@ -638,7 +641,8 @@
 	.soon li {
 		color: #a6abb3;
 	}
-	.tag {
+	/* Not the global .tag: that one fills with the accent, which hid this lime text. */
+	.soon-tag {
 		font-size: 11px;
 		border: 1px solid var(--line);
 		padding: 2px 6px;
