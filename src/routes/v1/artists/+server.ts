@@ -5,7 +5,7 @@ export const POST: RequestHandler = createEndpoint('artist');
 
 import { and, asc, eq, gt } from 'drizzle-orm';
 import { parties } from '#lib/server/db/schema.js';
-import { pageParams, toWire, v1 } from '#lib/server/api/v1.js';
+import { artistToWire, pageParams, v1 } from '#lib/server/api/v1.js';
 export const GET: RequestHandler = v1('catalog:read', ({ url }, { orgId, db }) => {
 	const { limit, after } = pageParams(url);
 	return db(async (tx) => {
@@ -16,7 +16,7 @@ export const GET: RequestHandler = v1('catalog:read', ({ url }, { orgId, db }) =
 			.orderBy(asc(parties.id))
 			.limit(limit + 1);
 		return {
-			data: toWire(rows.slice(0, limit)),
+			data: rows.slice(0, limit).map(artistToWire),
 			next_cursor: rows.length > limit ? rows[limit - 1].id : null
 		};
 	});

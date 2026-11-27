@@ -24,20 +24,28 @@ function resolve(node: unknown): Resolved {
 const ajv = addFormats(new Ajv2020({ strict: false, allErrors: true }));
 
 /** The JSON Schema of `path`'s GET response with this status, or null if the document gives none. */
-export function responseSchema(path: string, status: string) {
-	const response = openapiDoc.paths[path]?.get?.responses[status];
+export function responseSchema(path: string, status: string, method = 'get') {
+	const response = openapiDoc.paths[path]?.[method]?.responses[status];
 	if (!response) return null;
 	return resolve(response).content?.['application/json']?.schema ?? null;
 }
 
 /** Throws with every violation if `body` does not match the documented response. */
-export function expectMatchesSpec(path: string, status: string, body: unknown): void {
-	const schema = responseSchema(path, status);
-	if (!schema) throw new Error(`docs/openapi.yaml has no JSON schema for GET ${path} ${status}`);
+export function expectMatchesSpec(
+	path: string,
+	status: string,
+	body: unknown,
+	method = 'get'
+): void {
+	const schema = responseSchema(path, status, method);
+	if (!schema)
+		throw new Error(
+			`docs/openapi.yaml has no JSON schema for ${method.toUpperCase()} ${path} ${status}`
+		);
 	const validate = ajv.compile({ ...(schema as object), components: openapiDoc.components });
 	if (!validate(body)) {
 		throw new Error(
-			`GET ${path} ${status} does not match docs/openapi.yaml:\n` +
+			`${method.toUpperCase()} ${path} ${status} does not match docs/openapi.yaml:\n` +
 				(validate.errors ?? []).map((e) => `  ${e.instancePath || '/'} ${e.message}`).join('\n') +
 				`\nbody: ${JSON.stringify(body).slice(0, 600)}`
 		);
