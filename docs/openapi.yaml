@@ -10,6 +10,7 @@ info:
     Create endpoints require `catalog:write`. Existing keys keep their scopes; owners opt in by creating a
     write-enabled key. Optional `Idempotency-Key` receipts are scoped to one key actor and route. Repeating
     the same JSON returns the original 201 response; a different JSON body with that key returns 409.
+    The release id in a track route matches in any letter case, so a retry may change its case.
 servers:
   - url: https://api.labelkit.co
 security:
@@ -197,7 +198,10 @@ paths:
     post:
       summary: Add a track to a release
       operationId: addTrack
-      description: Requires catalog:write; audited as the key agent. No update or delete operation.
+      description: |
+        Requires catalog:write; audited as the key agent. No update or delete operation.
+        An `id` that is not a UUID answers `404`. A well-formed `id` that matches no release
+        answers `400`.
       parameters:
         - $ref: '#/components/parameters/id'
         - $ref: '#/components/parameters/idempotency'
@@ -219,6 +223,7 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
 components:
   securitySchemes:
@@ -324,13 +329,13 @@ components:
         next_cursor: { type: [string, 'null'], format: uuid }
     Artist:
       type: object
-      required: [id]
+      additionalProperties: false
+      required: [id, display_name, kind, created_at]
       properties:
         id: { $ref: '#/components/schemas/Id' }
-        display_name: { type: string }
-        kind: { type: string }
+        display_name: { type: string, minLength: 1 }
+        kind: { type: string, enum: [person, group, unknown] }
         created_at: { $ref: '#/components/schemas/Timestamp' }
-        updated_at: { $ref: '#/components/schemas/Timestamp' }
     Release:
       type: object
       required: [id]

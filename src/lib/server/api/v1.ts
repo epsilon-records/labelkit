@@ -128,6 +128,21 @@ export async function listRecordingsPage(
 	return page(rows, limit);
 }
 
+/** An artist as the API sends it: the public columns of a `parties` row, without its internal match key. */
+export function artistToWire(row: {
+	id: string;
+	displayName: string;
+	kind: string;
+	createdAt: Date;
+}) {
+	return {
+		id: row.id,
+		display_name: row.displayName,
+		kind: row.kind,
+		created_at: row.createdAt.toISOString()
+	};
+}
+
 /** camelCase keys to snake_case, recursively, dropping org ids (always the key's own label). */
 export function toWire(value: unknown): unknown {
 	if (Array.isArray(value)) return value.map(toWire);
