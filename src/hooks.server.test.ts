@@ -65,6 +65,7 @@ describe('auth hook allowlist', () => {
 		'/terms',
 		'/auth/callback',
 		'/auth/confirm',
+		'/auth/handoff',
 		'/brand-icon'
 	])('serves %s without a Supabase user', async (pathname) => {
 		const { resolved } = await runHook(pathname);
@@ -91,7 +92,9 @@ describe('auth hook allowlist', () => {
 		'/privacy-old',
 		'/terms/old',
 		'/auth/callbackx',
-		'/auth/confirm/extra'
+		'/auth/confirm/extra',
+		'/auth/handoffx',
+		'/auth/handoff/extra'
 	])('still redirects the unauthenticated app path %s to /login', async (pathname) => {
 		const { response, resolved } = await runHook(pathname);
 		expect(resolved).toBe(false);
