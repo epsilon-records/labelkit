@@ -13,7 +13,7 @@ import { isAuthorizedWorkerRequest } from '#lib/server/worker-auth.js';
 import { db } from '#lib/server/db/client.js';
 import { memberships, orgs } from '#lib/server/db/schema.js';
 import { scopedTo } from '#lib/server/db/scoped.js';
-import { brandForHost, DEFAULT_BRAND } from '#lib/server/branding.js';
+import { brandForHost, DEFAULT_BRAND, type Brand } from '#lib/server/branding.js';
 import { crawlerMetadata, noindex } from '#lib/server/crawler.js';
 import { isLandingRequest } from '#lib/server/landing.js';
 import { isMachineRoute, isPublicPath, PUBLIC_PAGES } from '#lib/server/public-paths.js';
@@ -26,6 +26,14 @@ import {
 	OPENAPI_PATH,
 	servesApiForTesting
 } from '#lib/server/api-host.js';
+import {
+	LABEL_SESSION_COOKIE,
+	labelCookieClearOptions,
+	labelSessionUser,
+	NO_SUPABASE_COOKIES
+} from '#lib/server/label-host.js';
+import { resolveLabelSession } from '#lib/server/label-session.js';
+import { labelSessionsEnabled } from '#lib/server/label-sessions-env.js';
 import { ORG_COOKIE, pickMembership, needsOnboarding } from '#lib/server/org.js';
 import { verifiedUser } from '#lib/server/session-user.js';
 
@@ -64,16 +72,114 @@ Sentry.init({
 	beforeSend: (event) => (isMetricsRequest(event.request?.url) ? null : event)
 });
 
+/** A request-bound runner as this user, pinned to one label on a label's own domain. */
+const requestScope = (userId: string, pinOrgId?: string) =>
+	pinOrgId ? scopedTo(db(), userId, { pinOrgId }) : scopedTo(db(), userId);
+
+/** The membership read every signed-in request makes, as the user and under RLS. */
+const loadMemberships = (userId: string, pinOrgId?: string) =>
+	requestScope(
+		userId,
+		pinOrgId
+	)((tx) =>
+		tx
+			.select({
+				orgId: memberships.orgId,
+				role: memberships.role,
+				orgName: orgs.name,
+				onboardedAt: memberships.onboardedAt,
+				closedAt: orgs.closedAt
+			})
+			.from(memberships)
+			.innerJoin(orgs, eq(orgs.id, memberships.orgId))
+			.where(eq(memberships.userId, userId))
+			.orderBy(asc(memberships.createdAt), asc(orgs.name))
+	);
+
+/**
+ * Which kind of host a request is on, when LABEL_SESSIONS is on (knowledge labelkit 0051, 0054,
+ * epsilon-records/labelkit#258): a label's own domain, where the session is label-only; any other
+ * host (labelkit.co, previews, localhost), served as before; or one that could not be told. The
+ * branding lookup is cached per host for a minute. When it fails, the host might be a label's, so
+ * the request is served as signed out and touches no cookie: failing open would read a Supabase
+ * session on a label's domain.
+ */
+type HostKind =
+	| { kind: 'standard'; brand?: Brand }
+	| { kind: 'label'; orgId: string; brand: Brand }
+	| { kind: 'unknown' };
+
+async function hostKind(host: string): Promise<HostKind> {
+	if (!labelSessionsEnabled()) return { kind: 'standard' };
+	try {
+		const brand = await brandForHost(db(), host);
+		return brand.orgId ? { kind: 'label', orgId: brand.orgId, brand } : { kind: 'standard', brand };
+	} catch {
+		return { kind: 'unknown' };
+	}
+}
+
+/**
+ * The person behind a label host's session cookie, with the one membership it gives. Returns null
+ * when there is no cookie, or it names no live session on this host (expired, revoked, another host,
+ * the person left the label, the label closed or changed its domain). The membership read runs
+ * pinned to the label (RLS: every other label of that person is invisible) and is filtered to it
+ * again here, so `memberships` is that label or nothing, never another one.
+ */
+async function labelSignedIn(event: Parameters<Handle>[0]['event'], host: string, orgId: string) {
+	const sessionId = event.cookies.get(LABEL_SESSION_COOKIE);
+	if (!sessionId) return null;
+	let session;
+	try {
+		session = await resolveLabelSession(db(), { sessionId, host });
+	} catch (err) {
+		// A database failure says nothing about the cookie: keep it, and serve the request signed out.
+		console.error(
+			JSON.stringify({
+				level: 'error',
+				msg: 'label session lookup failed',
+				host,
+				error: String(err)
+			})
+		);
+		return null;
+	}
+	const rows = session
+		? (await loadMemberships(session.userId, session.orgId)).filter(
+				(m) => m.orgId === session.orgId && m.orgId === orgId
+			)
+		: [];
+	if (!session) {
+		// Unknown, expired or revoked: drop the stale cookie; the sign-in redirect does the rest.
+		event.cookies.delete(LABEL_SESSION_COOKIE, labelCookieClearOptions);
+		return null;
+	}
+	if (!rows.length) return null;
+	return {
+		user: labelSessionUser(session.userId),
+		loaded: rows,
+		pinOrgId: session.orgId
+	};
+}
+
 const appHandle: Handle = async ({ event, resolve }) => {
+	// Label-only sessions (flag LABEL_SESSIONS, off by default): on a label's own domain the session
+	// is the host-only label cookie, and no Supabase cookie is ever read or written. Off, or on any
+	// other host, everything below runs exactly as it always did.
+	const host = await hostKind(event.url.host);
+	const onLabelHost = host.kind !== 'standard';
+
 	event.locals.supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
-		cookies: {
-			getAll: () => event.cookies.getAll(),
-			setAll: (cookies) => {
-				for (const { name, value, options } of cookies) {
-					event.cookies.set(name, value, { ...options, path: '/' });
+		cookies: onLabelHost
+			? NO_SUPABASE_COOKIES
+			: {
+					getAll: () => event.cookies.getAll(),
+					setAll: (cookies) => {
+						for (const { name, value, options } of cookies) {
+							event.cookies.set(name, value, { ...options, path: '/' });
+						}
+					}
 				}
-			}
-		}
 	});
 
 	// Per-customer branding by host (EPSILON-132), before sign-in so the login page is branded too.
@@ -81,34 +187,28 @@ const appHandle: Handle = async ({ event, resolve }) => {
 	// failed lookup must never take the login page down: fall back to LabelKit's own branding.
 	// Branding, Auth and the membership read run side by side: each waits on Frankfurt from Ohio
 	// (EPSILON-145, knowledge labelkit/decisions/0029).
-	const brand = event.url.pathname.startsWith('/api/')
-		? Promise.resolve(DEFAULT_BRAND)
-		: Promise.resolve()
-				.then(() => brandForHost(db(), event.url.host))
-				.catch(() => DEFAULT_BRAND);
+	const brand =
+		host.kind === 'label' || (host.kind === 'standard' && host.brand)
+			? Promise.resolve(host.brand)
+			: host.kind === 'unknown' || event.url.pathname.startsWith('/api/')
+				? Promise.resolve(DEFAULT_BRAND)
+				: Promise.resolve()
+						.then(() => brandForHost(db(), event.url.host))
+						.catch(() => DEFAULT_BRAND);
 
 	// getUser() asks Supabase Auth to verify the token; never trust getSession() alone on the server.
 	// verifiedUser() takes the user from getUser() only, and reads the memberships alongside it.
-	const signedIn = await verifiedUser(event.locals.supabase.auth, (userId) =>
-		// Every query for this request runs as labelkit_app on behalf of this user, under RLS.
-		scopedTo(
-			db(),
-			userId
-		)((tx) =>
-			tx
-				.select({
-					orgId: memberships.orgId,
-					role: memberships.role,
-					orgName: orgs.name,
-					onboardedAt: memberships.onboardedAt,
-					closedAt: orgs.closedAt
-				})
-				.from(memberships)
-				.innerJoin(orgs, eq(orgs.id, memberships.orgId))
-				.where(eq(memberships.userId, userId))
-				.orderBy(asc(memberships.createdAt), asc(orgs.name))
-		)
-	);
+	// Every query for this request runs as labelkit_app on behalf of this user, under RLS.
+	const signedIn: {
+		user: NonNullable<App.Locals['user']>;
+		loaded: Awaited<ReturnType<typeof loadMemberships>>;
+		pinOrgId?: string;
+	} | null =
+		host.kind === 'standard'
+			? await verifiedUser(event.locals.supabase.auth, (userId) => loadMemberships(userId))
+			: host.kind === 'label'
+				? await labelSignedIn(event, event.url.host, host.orgId)
+				: null;
 	const user = signedIn?.user ?? null;
 	event.locals.brand = await brand;
 	event.locals.user = user;
@@ -117,7 +217,7 @@ const appHandle: Handle = async ({ event, resolve }) => {
 	event.locals.db = () => error(401, 'Sign in first.');
 
 	if (signedIn) {
-		event.locals.db = scopedTo(db(), signedIn.user.id);
+		event.locals.db = requestScope(signedIn.user.id, signedIn.pinOrgId);
 		const rows = signedIn.loaded;
 		event.locals.memberships = rows;
 		// On a customer's own domain, act in that label when the user belongs to it.

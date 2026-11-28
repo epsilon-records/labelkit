@@ -38,6 +38,16 @@ export const variables = defineEnvVars({
 			.transform((v) => v === 'true'),
 		description: 'Lets anyone create an account and a label from /signup; off unless "true"'
 	},
+	// Label-only sessions (knowledge labelkit 0051, 0054; epsilon-records/labelkit#258). Off by
+	// default: with it off, every host is served exactly as before and /go and /auth/handoff do nothing.
+	LABEL_SESSIONS: {
+		schema: z
+			.string()
+			.default('false')
+			.transform((v) => v === 'true'),
+		description:
+			'Sessions on a label\'s own domain reach that label only, entered by a one-time handoff from labelkit.co; off unless "true"'
+	},
 	PUBLIC_SUPABASE_URL: {
 		public: true,
 		schema: z.url(),

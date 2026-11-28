@@ -1,6 +1,7 @@
 /**
  * Routes reachable without signing in, matched exactly: a new route is behind the sign-in redirect
- * unless it is added here. `/auth/confirm` is where an invite link lands (EPSILON-87);
+ * unless it is added here. `/auth/confirm` is where an invite link lands (EPSILON-87); `/auth/handoff` is where a label's own
+ * domain takes its sign-in ticket;
  * `/signup/label` sends a visitor with no session on to `/signup` itself.
  */
 export const PUBLIC_PAGES: readonly string[] = [
@@ -12,6 +13,10 @@ export const PUBLIC_PAGES: readonly string[] = [
 	'/terms',
 	'/auth/callback',
 	'/auth/confirm',
+	// A label's own domain trades a one-time ticket for its session there (labelkit#258). The ticket
+	// is the credential: the route answers a bad one with the sign-in page, and does nothing while
+	// LABEL_SESSIONS is off.
+	'/auth/handoff',
 	// A label's own tab icon, set on /org/branding; the login page shows it.
 	'/brand-icon'
 ];

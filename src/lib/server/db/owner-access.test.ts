@@ -19,7 +19,12 @@ const ALLOWED = new Set([
 	// secret.
 	'src/routes/api/internal/verify-masters/+server.ts',
 	// Issues a label's AudioKit client; no other role can touch the credentials table.
-	'src/routes/org/audiokit-client/+server.ts'
+	'src/routes/org/audiokit-client/+server.ts',
+	// Label sessions (labelkit#258): label_handoffs and label_sessions have no policy and no grant for
+	// any other role. /go/[host] checks membership and the label's domain, then mints a one-time
+	// ticket; /auth/handoff spends it once. The ticket is the credential for the second.
+	'src/routes/go/[host]/+server.ts',
+	'src/routes/auth/handoff/+server.ts'
 ]);
 
 function* files(dir: string): Generator<string> {

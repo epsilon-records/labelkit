@@ -21,7 +21,10 @@ vi.mock('@sveltejs/kit/hooks', () => ({
 		}
 }));
 vi.mock('@supabase/ssr', () => ({ createServerClient: spies.auth }));
-vi.mock('$app/env/private', () => ({ SENTRY_DSN: 'https://fake@example.invalid/1' }));
+vi.mock('$app/env/private', () => ({
+	SENTRY_DSN: 'https://fake@example.invalid/1',
+	LABEL_SESSIONS: false
+}));
 vi.mock('@sentry/sveltekit', () => ({
 	init: vi.fn(),
 	httpIntegration: vi.fn(),
