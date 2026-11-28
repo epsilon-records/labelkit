@@ -15,7 +15,7 @@ const spies = vi.hoisted(() => ({
 	authEmailRunner: vi.fn(() => vi.fn())
 }));
 vi.mock('@supabase/ssr', () => ({ createServerClient: spies.auth }));
-vi.mock('$app/env/private', () => ({ SENTRY_DSN: undefined }));
+vi.mock('$app/env/private', () => ({ SENTRY_DSN: undefined, LABEL_SESSIONS: false }));
 vi.mock('@sentry/sveltekit', () => ({
 	init: vi.fn(),
 	httpIntegration: vi.fn(),
