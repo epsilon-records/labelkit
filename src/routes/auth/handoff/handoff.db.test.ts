@@ -191,13 +191,16 @@ describe('label handoff routes (database)', () => {
 			} as never)
 		).rejects.toMatchObject({ status: 404 });
 
-		await db.update(orgs).set({ closedAt: new Date() }).where(eq(orgs.id, orgB));
+		await db
+			.update(orgs)
+			.set({ closedAt: T0, purgeAfter: new Date(T0.getTime() + 30 * 24 * 3600 * 1000) })
+			.where(eq(orgs.id, orgB));
 		try {
 			await expect(
 				go({ params: { host: HOST_B }, locals: asMember(MEMBER, [orgA, orgB]) } as never)
 			).rejects.toMatchObject({ status: 404 });
 		} finally {
-			await db.update(orgs).set({ closedAt: null }).where(eq(orgs.id, orgB));
+			await db.update(orgs).set({ closedAt: null, purgeAfter: null }).where(eq(orgs.id, orgB));
 		}
 	});
 
